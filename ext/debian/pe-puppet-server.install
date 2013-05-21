@@ -1,0 +1,10 @@
+debian/addons/lib/puppet/application/license.rb    opt/puppet/lib/ruby/site_ruby/1.9.1/puppet/application
+debian/addons/lib/puppet/util/license.rb           opt/puppet/lib/ruby/site_ruby/1.9.1/puppet/util
+debian/addons/lib/puppet/util/command_line/license opt/puppet/lib/ruby/site_ruby/1.9.1/puppet/util/command_line
+debian/addons/spec/lib/puppet/util/license_spec.rb opt/puppet/lib/ruby/site_ruby/1.9.1/puppet/spec/lib/puppet/util/license_spec.r
+debian/conf/fileserver.conf                        etc/puppetlabs/puppet
+etc/puppetlabs/httpd/conf.d/puppetmaster.conf
+etc/puppetlabs/puppet/auth.conf
+opt/puppet/share/man/man8/puppet-ca.8.gz
+opt/puppet/share/man/man8/puppet-master.8.gz
+var/opt/lib/pe-puppetmaster/config.ru

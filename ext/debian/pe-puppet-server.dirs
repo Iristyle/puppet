@@ -1,0 +1,4 @@
+etc/puppetlabs/puppet
+opt/puppet/bin
+opt/puppet/share/man/man8
+etc/puppetlabs/puppet/files
