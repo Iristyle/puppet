@@ -1,4 +1,3 @@
-debian/addons/lib/puppet/application/license.rb    opt/puppet/lib/ruby/site_ruby/1.9.1/puppet/application
 debian/addons/lib/puppet/util/license.rb           opt/puppet/lib/ruby/site_ruby/1.9.1/puppet/util
 debian/addons/lib/puppet/util/command_line/license opt/puppet/lib/ruby/site_ruby/1.9.1/puppet/util/command_line
 debian/addons/spec/lib/puppet/util/license_spec.rb opt/puppet/lib/ruby/site_ruby/1.9.1/puppet/spec/lib/puppet/util/license_spec.r
