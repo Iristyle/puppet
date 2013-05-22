@@ -18,3 +18,5 @@ build_pe: TRUE
 apt_host: 'neptune.delivery.puppetlabs.net'
 apt_repo_url: 'http://freight.puppetlabs.lan'
 apt_repo_path: '/opt/pe_dev'
+tarball_path: '/opt/enterprise/sources'
+tar_host: 'neptune.delivery.puppetlabs.net'
