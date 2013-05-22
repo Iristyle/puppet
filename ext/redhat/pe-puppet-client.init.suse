@@ -31,6 +31,7 @@
 #      rc_reset         clear local rc status (overall remains)
 #      rc_exit          exit appropriate to overall rc status
 [ -f /etc/rc.status ] && . /etc/rc.status
+[ -f /etc/sysconfig/pe-puppet ] && . /etc/sysconfig/pe-puppet
 lockfile=${LOCKFILE-/var/lock/subsys/pe-puppet}
 pidfile=${PIDFILE-/var/run/pe-puppet/agent.pid}
 puppetd=${PUPPETD-/opt/puppet/bin/puppet}
