@@ -2,7 +2,11 @@
 
 %global p_vendor       pe
 %global _name          puppet
-%global _version       3.2.0
+%global realversion    <%= @version %>
+%global rpmversion     <%= @rpmversion %>
+
+%global confdir        ext/redhat
+
 %global facter_version 1.6.0
 %global rails_version  2.3.16
 
@@ -33,25 +37,13 @@
 
 
 Name:           %{?name_prefix}%{_name}
-Version:        %{_version}
+Version:        %{rpmversion}
 Vendor:         Puppet Labs
-Release:        3.pe%{?dist}
+Release:        <%= @rpmrelease -%>.pe%{?dist}
 Summary:        A network tool for managing many disparate systems
 License:        ASL 2.0
 URL:            http://puppetlabs.com
-Source0:        http://puppetlabs.com/downloads/%{_name}/%{_name}-%{_version}.tar.gz
-Source1:        %{name}-client.init
-Source2:        %{name}-fileserver.conf
-Source3:        %{name}-logrotate
-Source4:        %{name}.conf
-Source5:        %{name}.appilication.license.rb
-Source6:        %{name}.util.license.rb
-Source7:        %{name}.util.command_line.license
-Source8:        %{name}-client.init.suse
-Patch1:         %{name}-rundir-perms.patch
-Patch2:         %{name}-modify-default-confdir_3x.patch
-Patch3:         %{name}-modify-version-string_311.patch
-Patch4:         %{name}-Add-MD5-to-list-of-suitable-digests.patch
+Source0:        %{name}-%{realversion}.tar.gz
 
 Group:          System Environment/Base
 
@@ -118,11 +110,7 @@ Provides the central puppet server daemon which provides manifests to clients.
 The server can also function as a certificate authority and file server.
 
 %prep
-%setup -q -n %{_name}-%{version}
-%patch1 -p1 -b .rundir-perms
-%patch2 -p1 -b .modify-default-confdir
-%patch3 -p1 -b .modify-version-string
-%patch4 -p1 -b .host_rb
+%setup -q -n %{name}-%{realversion}
 
 %build
 # Fix some rpmlint complaints
@@ -154,17 +142,14 @@ install -d -m0755 %{buildroot}%{_localstatedir}/opt/lib/%{name}
 install -d -m0755 %{buildroot}%{_localstatedir}/run/%{name}
 install -d -m0750 %{buildroot}%{_localstatedir}/log/%{name}
 %if 0%{?suse_version}
-install -Dp -m0755 $RPM_SOURCE_DIR/%{name}-client.init.suse %{buildroot}%{_initrddir}/%{name}
+install -Dp -m0755 %{confdir}/%{name}-client.init.suse %{buildroot}%{_initrddir}/%{name}
 %else
-install -Dp -m0755 $RPM_SOURCE_DIR/%{name}-client.init %{buildroot}%{_initrddir}/%{name}
+install -Dp -m0755 %{confdir}/%{name}-client.init %{buildroot}%{_initrddir}/%{name}
 %endif
-install -Dp -m0644 $RPM_SOURCE_DIR/%{name}-fileserver.conf %{buildroot}%{_sysconfdir}/%{_name}/fileserver.conf
-install -Dp -m0644 $RPM_SOURCE_DIR/%{name}.conf %{buildroot}%{_sysconfdir}/%{_name}/puppet.conf
-install -Dp -m0644 $RPM_SOURCE_DIR/%{name}.appilication.license.rb %{buildroot}%{ruby_sitelibdir}/puppet/application/license.rb
-install -Dp -m0644 $RPM_SOURCE_DIR/%{name}.util.license.rb %{buildroot}%{ruby_sitelibdir}/puppet/util/license.rb
-install -Dp -m0644 $RPM_SOURCE_DIR/%{name}.util.command_line.license %{buildroot}%{ruby_sitelibdir}/puppet/util/command_line/license
+install -Dp -m0644 %{confdir}/%{name}-fileserver.conf %{buildroot}%{_sysconfdir}/%{_name}/fileserver.conf
+install -Dp -m0644 %{confdir}/%{name}.conf %{buildroot}%{_sysconfdir}/%{_name}/puppet.conf
 install -Dp -m0644 conf/auth.conf %{buildroot}%{_sysconfdir}/%{_name}/auth.conf
-install -Dp -m0644 $RPM_SOURCE_DIR/%{name}-logrotate %{buildroot}%{_real_sysconfdir}/logrotate.d/%{name}
+install -Dp -m0644 %{confdir}/%{name}-logrotate %{buildroot}%{_real_sysconfdir}/logrotate.d/%{name}
 
 # Add tests from spec dir
 #install -d -m0755 %{buildroot}%{ruby_sitelibdir}/puppet/spec
@@ -198,14 +183,6 @@ rm -f %{buildroot}%{_datadir}/%{name}/ext/redhat/*.init
 
 for file in `find %{buildroot}%{_datadir}/%{_name}/ext -type f`; do
     sed -i -e '1s,^#!.*ruby$,#!/opt/puppet/bin/ruby,' $file
-done
-
-# rm some shebangs
-for file in \
-    %{buildroot}%{ruby_sitelibdir}/%{_name}/network/http_server/mongrel.rb \
-    %{buildroot}%{ruby_sitelibdir}/%{_name}/util/command_line/license
-do
-    head -1 $file | grep -q '^#!.*' && sed -i -e '1d' $file
 done
 
 %files
@@ -305,6 +282,9 @@ fi
 rm -rf %{buildroot}
 
 %changelog
+* <%= Time.now.strftime("%a %b %d %Y") %> Puppet Labs Release <info@puppetlabs.com> -  <%= @rpmversion %>-<%= @rpmrelease %>
+- Build for <%= @version %>
+
 * Fri May 17 2013 Moses Mendoza <moses@puppetlabs.com> - 3.2.0-3.pe
 - Remove versioned ruby requires
 
