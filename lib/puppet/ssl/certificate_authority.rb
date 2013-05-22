@@ -261,11 +261,9 @@ class Puppet::SSL::CertificateAuthority
       end
     end
     if Puppet[:run_mode].to_sym == :master
-      Puppet.notice "Preparing to fork license check thread"
       t = Thread.fork { proc.call }
       at_exit { t.join }
     else
-      Puppet.notice "Preparing to check license status"
       proc.call
     end
   end
