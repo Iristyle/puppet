@@ -21,9 +21,9 @@ module Puppet
   end
 
   if PEVersion then
-    PUPPETVERSION = '3.2.1-rc1 (Puppet Enterprise%s)' % PEVersion.to_s.rstrip.chomp
+    PUPPETVERSION = '3.2.1 (Puppet Enterprise%s)' % PEVersion.to_s.rstrip.chomp
   else
-    PUPPETVERSION = '3.2.1-rc1'
+    PUPPETVERSION = '3.2.1'
   end
 
   ##
