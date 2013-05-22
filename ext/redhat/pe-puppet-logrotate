@@ -1,0 +1,9 @@
+/var/log/pe-puppet/*log {
+  missingok
+  notifempty
+  create 0644 pe-puppet pe-puppet
+  sharedscripts
+  postrotate
+    [ -e /etc/init.d/pe-puppet ] && /etc/init.d/pe-puppet reload > /dev/null 2>&1 || true
+  endscript
+}
