@@ -1,0 +1,527 @@
+%{!?ruby_sitelibdir: %define ruby_sitelibdir %(PATH=/opt/puppet/bin:$PATH ruby -e "puts RbConfig::CONFIG['sitelibdir']")}
+
+%global p_vendor       pe
+%global _name          puppet
+%global realversion    <%= @version %>
+%global rpmversion     <%= @rpmversion %>
+
+%global confdir        ext/redhat
+
+%global facter_version 1.6.0
+%global rails_version  2.3.16
+
+%if 0%{?p_vendor:1}
+    %global name_prefix      %{p_vendor}-
+
+    # The %{!?foo: ...} idiom is needed, because the spec gets re-evaluated for
+    # each package that is built.  This really messes with things that are only
+    # supposed to be evaluated at "definition time".
+
+    # Grab the "real" directories so we can reference the system's files.
+    %{!?_real_initrddir:     %global _real_initrddir     %{_initrddir}}
+    %{!?_real_localstatedir: %global _real_localstatedir %{_localstatedir}}
+    %{!?_real_sysconfdir:    %global _real_sysconfdir    %{_sysconfdir}}
+
+    # Use the alternate locations for things.
+    %global _initrddir       %{_real_initrddir}
+    %global _localstatedir   %{_real_localstatedir}
+    %global _sysconfdir      %{_real_sysconfdir}/puppetlabs
+
+    # Override the _prefix last, so we can get the _real_* locations.
+    %{!?_orig_prefix:     %global _orig_prefix     %{_prefix}}
+    %global               _prefix /opt/puppet
+    %global               _mandir %{_prefix}/share/man
+%endif
+
+%define ruby          %{_bindir}/ruby
+
+
+Name:           %{?name_prefix}%{_name}
+Version:        %{rpmversion}
+Vendor:         Puppet Labs
+Release:        <%= @rpmrelease -%>.pe%{?dist}
+Summary:        A network tool for managing many disparate systems
+License:        ASL 2.0
+URL:            http://puppetlabs.com
+Source0:        %{name}-%{realversion}.tar.gz
+
+Group:          System Environment/Base
+
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-%(id -un)
+BuildArch:      noarch
+
+BuildRequires:  %{?name_prefix}facter >= %{facter_version}
+BuildRequires:  %{?name_prefix}ruby
+
+Requires:       %{?name_prefix}ruby-shadow
+Requires:       %{?name_prefix}facter >= %{facter_version}
+Requires:       %{?name_prefix}ruby
+Requires:       %{?name_prefix}ruby-rgen
+
+Obsoletes:      pe-rubygem-puppet-module <= 0.3.5
+Obsoletes:      pe-rubygem(puppet-module) <= 0.3.5
+Obsoletes:      pe-rubygem-hiera-puppet < 1.0.0
+Obsoletes:      pe-rubygem(hiera-puppet) < 1.0.0
+Provides:       pe-rubygem-puppet-module
+Provides:       pe-rubygem(puppet-module) >= 0.3.4
+Provides:       pe-rubygem-hiera-puppet >= 1.0.0
+Provides:       pe-rubygem(hiera-puppet) >= 1.0.0
+
+
+Requires(pre):    shadow-utils
+%if 0%{?suse_version}
+Requires:         aaa_base
+%else
+Requires(post):   chkconfig
+Requires(preun):  chkconfig
+Requires(preun):  initscripts
+Requires(postun): initscripts
+%endif
+
+%description
+Puppet lets you centrally manage every important aspect of your system using a
+cross-platform specification language that manages all the separate elements
+normally aggregated in different files, like users, cron jobs, and hosts,
+along with obviously discrete elements like packages, services, and files.
+
+# we don't want to either provide or require anything from _docdir, per policy
+%{?filter_setup:
+%filter_provides_in %{_docdir}
+%filter_requires_in %{_docdir}
+%filter_setup
+}
+
+%package server
+Group:            System Environment/Base
+Summary:          Server for the puppet system management tool
+Requires:         %{?name_prefix}%{_name} = %{version}-%{release}
+Requires:         %{?name_prefix}rubygem-activerecord   >= %{rails_version}
+%if 0%{?suse_version}
+Requires:         aaa_base
+%else
+Requires(post):   chkconfig
+Requires(preun):  chkconfig
+Requires(preun):  initscripts
+Requires(postun): initscripts
+%endif
+
+%description server
+Provides the central puppet server daemon which provides manifests to clients.
+The server can also function as a certificate authority and file server.
+
+%prep
+%setup -q -n %{name}-%{realversion}
+
+%build
+# Fix some rpmlint complaints
+# FIXME post 2.7.6
+#for f in external/nagios.rb network/http_server/mongrel.rb relationship.rb; do
+for f in external/nagios.rb  relationship.rb; do
+  sed -i -e '1d' lib/puppet/$f
+done
+
+find examples/ -type f | xargs --no-run-if-empty chmod a-x
+
+%install
+rm -rf %{buildroot}
+%{ruby} install.rb --destdir=%{buildroot} --quick --no-rdoc
+
+install -d -m0755 %{buildroot}%{_localstatedir}/opt/lib/%{name}master
+install -d -m0755 %{buildroot}%{_sysconfdir}/httpd/conf.d
+touch %{buildroot}%{_localstatedir}/opt/lib/%{name}master/config.ru
+touch %{buildroot}%{_sysconfdir}/httpd/conf.d/puppetmaster.conf
+
+# Remove unwanted files produced by "install.rb", such as "auth.conf" which we're installing in a different place.
+rm -rf %{buildroot}/etc/puppet
+
+install -d -m0755 %{buildroot}%{_sysconfdir}/%{_name}/manifests
+install -d -m0755 %{buildroot}%{_sysconfdir}/%{_name}/modules
+install -d -m0755 %{buildroot}%{_sysconfdir}/%{_name}/files
+install -d -m0755 %{buildroot}%{_datadir}/%{_name}/modules
+install -d -m0755 %{buildroot}%{_localstatedir}/opt/lib/%{name}
+install -d -m0755 %{buildroot}%{_localstatedir}/run/%{name}
+install -d -m0750 %{buildroot}%{_localstatedir}/log/%{name}
+%if 0%{?suse_version}
+install -Dp -m0755 %{confdir}/%{name}-client.init.suse %{buildroot}%{_initrddir}/%{name}
+%else
+install -Dp -m0755 %{confdir}/%{name}-client.init %{buildroot}%{_initrddir}/%{name}
+%endif
+install -Dp -m0644 %{confdir}/%{name}-fileserver.conf %{buildroot}%{_sysconfdir}/%{_name}/fileserver.conf
+install -Dp -m0644 %{confdir}/%{name}.conf %{buildroot}%{_sysconfdir}/%{_name}/puppet.conf
+install -Dp -m0644 conf/auth.conf %{buildroot}%{_sysconfdir}/%{_name}/auth.conf
+install -Dp -m0644 %{confdir}/%{name}-logrotate %{buildroot}%{_real_sysconfdir}/logrotate.d/%{name}
+
+# Add tests from spec dir
+#install -d -m0755 %{buildroot}%{ruby_sitelibdir}/puppet/spec
+
+# Install the ext/ directory to %{_datadir}/%{name}
+install -d %{buildroot}%{_datadir}/%{_name}
+cp -a ext/ %{buildroot}%{_datadir}/%{_name}
+
+# These should be executable
+chmod +x %{buildroot}%{_datadir}/%{_name}/ext/puppet-load.rb
+chmod +x %{buildroot}%{_datadir}/%{_name}/ext/regexp_nodes/regexp_nodes.rb
+
+# emacs and vim bits aren't installed and we remove packaging
+# artifacts not applicable to rpm
+for file in solaris \
+            suse \
+            systemd \
+            windows \
+            ips \
+            gentoo \
+            freebsd \
+            emacs \
+            vim \
+            debian \
+            osx \
+            build_defaults.yaml \
+            project_data.yaml ; do
+  rm -rf %{buildroot}%{_datadir}/%{_name}/ext/$file ;
+done
+rm -f %{buildroot}%{_datadir}/%{name}/ext/redhat/*.init
+
+for file in `find %{buildroot}%{_datadir}/%{_name}/ext -type f`; do
+    sed -i -e '1s,^#!.*ruby$,#!/opt/puppet/bin/ruby,' $file
+done
+
+%files
+%defattr(-, root, root, 0755)
+%doc LICENSE README.md examples
+%{_bindir}/puppet
+%{_bindir}/extlookup2hiera
+%{ruby_sitelibdir}/*
+%{_initrddir}/%{name}
+%dir %{_sysconfdir}/%{_name}
+%config(noreplace) %{_sysconfdir}/%{_name}/puppet.conf
+%config(noreplace) %{_sysconfdir}/%{_name}/auth.conf
+%config(noreplace) %{_real_sysconfdir}/logrotate.d/%{name}
+%{_datadir}/%{_name}
+%{_mandir}/man5/puppet.conf.5.gz
+%{_mandir}/man8/puppet.8.gz
+%{_mandir}/man8/puppet-agent.8.gz
+%{_mandir}/man8/puppet-apply.8.gz
+%{_mandir}/man8/puppet-catalog.8.gz
+%{_mandir}/man8/puppet-describe.8.gz
+%{_mandir}/man8/puppet-ca.8.gz
+%{_mandir}/man8/puppet-cert.8.gz
+%{_mandir}/man8/puppet-certificate.8.gz
+%{_mandir}/man8/puppet-certificate_request.8.gz
+%{_mandir}/man8/puppet-certificate_revocation_list.8.gz
+%{_mandir}/man8/puppet-config.8.gz
+%{_mandir}/man8/puppet-device.8.gz
+%{_mandir}/man8/puppet-doc.8.gz
+%{_mandir}/man8/puppet-facts.8.gz
+%{_mandir}/man8/puppet-file.8.gz
+%{_mandir}/man8/puppet-filebucket.8.gz
+%{_mandir}/man8/puppet-help.8.gz
+%{_mandir}/man8/puppet-inspect.8.gz
+%{_mandir}/man8/puppet-instrumentation_data.8.gz
+%{_mandir}/man8/puppet-instrumentation_listener.8.gz
+%{_mandir}/man8/puppet-instrumentation_probe.8.gz
+%{_mandir}/man8/puppet-key.8.gz
+%{_mandir}/man8/puppet-kick.8.gz
+%{_mandir}/man8/puppet-man.8.gz
+%{_mandir}/man8/puppet-module.8.gz
+%{_mandir}/man8/puppet-node.8.gz
+%{_mandir}/man8/puppet-parser.8.gz
+%{_mandir}/man8/puppet-plugin.8.gz
+%{_mandir}/man8/puppet-queue.8.gz
+%{_mandir}/man8/puppet-report.8.gz
+%{_mandir}/man8/puppet-resource.8.gz
+%{_mandir}/man8/puppet-resource_type.8.gz
+%{_mandir}/man8/puppet-secret_agent.8.gz
+%{_mandir}/man8/puppet-status.8.gz
+%{_mandir}/man8/extlookup2hiera.8.gz
+# These need to be owned by puppet so the server can
+# write to them. Because of RH Bugzilla 681540, we use
+# multiple defattrs instead of attrs to future proof for
+# new versions of rpm
+%defattr(-, %{?name_prefix}puppet, %{?name_prefix}puppet, 0755)
+%{_localstatedir}/run/%{name}
+%defattr(-, %{?name_prefix}puppet, %{?name_prefix}puppet, 0750)
+%{_localstatedir}/log/%{name}
+%{_localstatedir}/opt/lib/%{name}
+
+%files server
+%defattr(-, root, %{?name_prefix}puppet, 0755)
+%config(noreplace) %{_sysconfdir}/%{_name}/fileserver.conf
+%dir %{_sysconfdir}/%{_name}/manifests
+%dir %{_sysconfdir}/%{_name}/modules
+%dir %{_sysconfdir}/%{_name}/files
+%config(noreplace,missingok) %{_localstatedir}/opt/lib/%{name}master/config.ru
+%config(noreplace,missingok) %{_sysconfdir}/httpd/conf.d/puppetmaster.conf
+%{_mandir}/man8/puppet-master.8.gz
+
+%pre
+getent group %{?name_prefix}puppet &>/dev/null || groupadd -r %{?name_prefix}puppet &>/dev/null
+getent passwd %{?name_prefix}puppet &>/dev/null || \
+useradd -r -g %{?name_prefix}puppet -d %{_localstatedir}/opt/lib/%{name} -s /sbin/nologin \
+    -c "Enterprise Distribution Puppet" %{?name_prefix}puppet &>/dev/null
+# ensure that old setups have the right puppet home dir
+if [ $1 -gt 1 ] ; then
+  usermod -d %{_localstatedir}/opt/lib/%{name} %{?name_prefix}puppet &>/dev/null
+fi
+exit 0
+
+%post
+/sbin/chkconfig --add %{name} || :
+
+%preun
+if [ "$1" = 0 ] ; then
+  /sbin/service %{name} stop > /dev/null 2>&1
+  /sbin/chkconfig --del %{name} || :
+fi
+
+%postun
+if [ "$1" -ge 1 ]; then
+  /sbin/service %{name} reload >/dev/null 2>&1 || :
+fi
+
+%clean
+rm -rf %{buildroot}
+
+%changelog
+* <%= Time.now.strftime("%a %b %d %Y") %> Puppet Labs Release <info@puppetlabs.com> -  <%= @rpmversion %>-<%= @rpmrelease %>
+- Build for <%= @version %>
+
+* Fri May 17 2013 Moses Mendoza <moses@puppetlabs.com> - 3.2.0-3.pe
+- Remove versioned ruby requires
+
+* Thu May 16 2013 Matthaus Owens <matthaus@puppetlabs.com> - 3.2.0-2.pe
+- (PE-375) Remove https report processor
+
+* Tue May 14 2013 Moses Mendoza <moses@puppetlabs.com> - 3.2.0-1.pe
+- Update to upstream 3.2.0
+- Remove files that shouldn't be packaged in ext/
+
+* Thu May 09 2013 Moses Mendoza <moses@puppetlabs.com> - 3.1.1-1.pe
+- Update to upstream 3.1.1
+
+* Tue Apr 02 2013 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.21-7.pe
+- Update init scripts with a more complete default PATH
+
+* Mon Mar 24 2013 Moses Mendoza <moses@puppetlabs.com> - 2.7.21-6.pe
+- Add patch for host.rb
+
+* Sat Mar 23 2013 Moses Mendoza <moses@puppetlabs.com> - 2.7.21-5.pe
+- Update AIX patch
+
+* Fri Mar 22 2013 Moses Mendoza <moses@puppetlabs.com> - 2.7.21-4.pe
+- Update AIX patch for user provider improvements
+
+* Wed Mar 20 2013 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.21-3.pe
+- Update the postun to call reload instead of restart so the daemon will wait for the current run to finish before restarting
+- Update agent init script to 'Return success from `pe-puppet stop` whenever the process actually dies'
+
+* Fri Mar 16 2013 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.21-2.pe
+- Add aix patches version b85a64e
+
+* Tue Mar 12 2013 Moses Mendoza <moses@puppetlabs.com> - 2.7.21-1.pe
+- Rebase to 2.7.21
+
+* Thu Mar 07 2013 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-16.pe
+- Update CVE patches for pe-puppet
+
+* Wed Mar 06 2013 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-15.pe
+- Update CVE patches for pe-puppet
+
+* Fri Mar 01 2013 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-14.pe
+- Update CVE patches for CVE-2013-2275
+
+* Wed Feb 27 2013 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-13.pe
+- Update CVE patches to add remote? method.
+
+* Tue Feb 26 2013 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-12.pe
+- Patch pe-puppet for CVE-2013-1640, CVE-2013-1652, CVE-2013-1653, CVE-2013-1654, CVE-2013-1655
+
+* Tue Jan 29 2013 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-11.pe
+- Bump rails version to 2.3.16, make >= instead of =
+
+* Wed Jan 09 2013 Moses Mendoza <moses@puppetlabs.com> - 2.7.19-10.pe
+- Bump rails version to 2.3.15
+
+* Wed Dec 12 2012 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-9.pe
+- #(18072) Fixup pe-puppet init script status to return non-zero when stopped
+
+* Wed Dec 05 2012 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-8.pe
+- Patch to update lib/util/zaml
+- Patch to update lib/util/feature
+
+* Wed Nov 07 2012 Moses Mendoza <moses@puppetlabs.com> - 2.7.19-7.pe
+- Update patch for host.rb
+
+* Tue Oct 30 2012 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-6.pe
+- (#17260) Add deprecation warnings patch for variables with hyphens.
+
+* Thu Oct 25 2012 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-5.pe
+- (#17140) Updating pe-puppet version patch to account for empty pe_version file
+
+* Tue Oct 23 2012 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-4.pe
+- (#15731) Patch host.rb for cert manager.
+
+* Wed Sep 12 2012 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-3.pe
+- Update init script to bail if no pidfile
+
+* Wed Sep 12 2012 Matthaus Owens <matthaus@puppetlabs.com> - 2.7.19-2.pe
+- (#16379) Add patch to fix inventory service 500 error
+
+* Mon Sep 10 2012 Moses Mendoza <moses@puppetlabs.com> 2.7.19-1.pe
+- Update for Puppet 2.7.19 with PE 2.6
+
+* Fri Aug 31 2012 Moses Mendoza <moses@puppetlabs.com> 2.7.12-17.pe
+- patch pe-puppet.util.license.rb license check/message
+
+* Wed Jul 18 2012 Moses Mendoza <moses@puppetlabs.com> 2.7.12-16.pe
+- Replace 3 upstart patches with one combined patch
+
+* Thu Jun 28 2012 Moses Mendoza <moses@puppetlabs.com> 2.7.12-15.pe
+- Add additional security patch for store report processor
+
+* Wed Jun 27 2012 Moses Mendoza <moses@puppetlabs.com> 2.7.12-14.pe
+- Add security patches
+
+* Wed Jun 20 2012 Matthaus Litteken <matthaus@puppetlabs.com> 2.7.12-13.pe
+- (#15120) Restore correct homedir for pe-puppet user.
+
+* Mon Jun 18 2012 Matthaus Litteken <matthaus@puppetlabs.com> 2.7.12-12.pe
+- (#15027, #15028, #15029) Add another upstart patch.
+
+* Fri Jun 15 2012 William Hopper <whopper@puppetlabs.com> - 2.7.12-11.pe
+- Add patch to improve compilation performance when using modules
+
+* Tue Jun 05 2012 Matthaus Litteken <matthaus@puppetlabs.com> - 2.7.12-10.pe
+- (#14761) Add reboot to redhat provider excludes
+
+* Fri May 25 2012 Matthaus Litteken <matthaus@puppetlabs.com> - 2.7.12-9.pe
+- (#14297) Further upstart provider improvements
+
+* Fri Apr 20 2012 Matthaus Litteken <matthaus@puppetlabs.com> - 2.7.12-8.pe
+- (#14075) Remove sysconfig from pe-puppet to avoid conflicts
+
+* Wed Apr 18 2012 Matthaus Litteken <matthaus@puppetlabs.com> - 2.7.12-7.pe
+- Add patch for upstart service provider
+
+* Wed Apr 04 2012 Matthaus Litteken <matthaus@puppetlabs.com> - 2.7.12-6.pe
+- Add patches for CVE 2012-1906, 2012-1986, 2012-1987, 2012-1988, 2012-1989
+
+* Sat Mar 24 2012 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.12-5.pe
+- Update PMT patch for final shipping
+
+* Tue Mar 20 2012 Michael Stahnke <stahnma@puppetlabs.com> -  2.7.12-4.pe
+- Add SELinux patch fix
+
+* Fri Mar 16 2012 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.12-3.pe
+- Update PMT patch
+
+* Wed Mar 14 2012 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.12-2.pe
+- Add PMT
+
+* Tue Mar 13 2012 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.12-1.pe
+- Import 2.7.12
+
+* Wed Mar 07 2012 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.12-0.4.rc2.pe
+- Remove the obsoletion of PMT
+
+* Mon Mar 05 2012 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.12-0.2.rc2.pe
+- Update to RC
+- Obsolete Module Tool
+
+* Fri Feb 17 2012 Matthaus Litteken <matthaus@puppetlabs.com> - 2.7.9-3.pe
+- Add patches for CVE-2012-1053 CVE-2012-1054
+
+* Wed Jan 11 2012 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.9-2.pe
+- Add patch to prevent MySQL deadlocks with inventory service
+
+* Wed Jan 04 2012 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.9-1.pe
+- Update to 2.7.9
+
+* Tue Jan 03 2012 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.6-5.pe
+- Be less stict on ruby version
+
+* Thu Dec 29 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.6-4.pe
+- Up dependency to 2.3.14 for rails components
+
+* Thu Nov 10 2011 Michael Stahnke <stahnma@puppetlabs.com> -  2.7.6-3.pe
+- Update report processor with error logging
+
+* Tue Nov 01 2011 Matthaus Litteken <matthaus@puppetlabs.com> - 2.7.6-2.pe
+- Add auth.conf patch
+
+* Tue Nov 01 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.6-1.pe
+- Add HTTPS report processor
+
+* Wed Oct 26 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.6-0.pe
+- Update to 2.7.6 Final
+
+* Thu Oct 13 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.6-0.1rc3.pe
+- Update to 2.7.6rc3
+
+* Thu Oct 13 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.6-0.5rc1.pe
+- Fix more license code
+
+* Mon Oct 10 2011 Michael Stahnke <stahnma@puppetlabs.com> -  2.7.6-0.4rc1.pe
+- Facter needs to be 1.6.0 or greater
+
+* Mon Oct 10 2011 Michael Stahnke <stahnma@puppetlabs.com> -  2.7.6-0.3rc1.pe
+- Ignore internal certs in license check
+
+* Wed Oct 05 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.6-0.2.rc1.pe
+- Update license file application util file
+
+* Tue Oct 04 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.6-0.1.rc1.pe
+- 2.7.6 rc
+
+* Tue Sep 20 2011 Matthaus Litteken <matthaus@puppetlabs.com> - 2.7.3-0.4.pe
+- Fix init script typo.
+
+* Mon Sep 12 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.3-0.3.pe
+- Remove dep on activeresource/activesupport
+
+* Wed Sep 07 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.7.3-0.2.pe
+- Update to 2.7.3
+
+* Tue Sep 6 2011 Matthaus Litteken <matthaus@puppetlabs.com> - 2.6.9-4.pe
+- Remove pe-rails, pe-actionpack, pe-actionmailer from requires.
+
+* Thu Aug 25 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.6.9-3.pe
+- Update init script
+
+* Thu Aug 18 2011 Matthaus Litteken <matthaus@puppetlabs.com> - 2.6.9-2.pe
+- Bumped release to 2 for PE 1.2
+
+* Thu Jul 21 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.6.9-1.pe
+- Update puppet to 2.6.9
+
+* Tue May 03 2011 Michael Stahnke <stahnma@puppetlabs.com> - 2.6.4-8
+- Fix so Source6 is not declared multiple times
+
+* Tue Apr 19 2011 Jacob Helwig <jacob@puppetlabs.com> - 2.6.4-7
+- Update logrotate file with current user, and path names.
+
+* Fri Jan 29 2011 Jacob Helwig <jacob@puppetlabs.com> - 2.6.4-7
+- Update licensing module
+
+* Wed Jan 27 2011 Jacob Helwig <jacob@puppetlabs.com> - 2.6.4-6
+- Fix chkconfig setup in init script
+- Update licensing module
+
+* Wed Jan 19 2011 Jacob Helwig <jacob@puppetlabs.com> - 2.6.4-5
+- Update licensing module
+
+* Fri Jan 14 2011 Jacob Helwig <jacob@puppetlabs.com> - 2.6.4-4
+- Add licensing module/application
+- Update verbage, and add help for license application
+
+* Fri Jan 14 2011 Jacob Helwig <jacob@puppetlabs.com> - 2.6.4-3
+- Modify '--version' to include Puppet Enterprise version from
+  /opt/puppet/pe_version.
+
+* Tue Jan  4 2011 Jacob Helwig <jacob@puppetlabs.com> - 2.6.4-2
+- Mark generated config files as config files.
+
+* Sun Dec 12 2010 Igal Koshevoy <igal@pragmaticraft.com> - 2.6.4-1
+- Update to 2.6.4
+
+* Mon Nov 01 2010 Jacob Helwig <jacob@puppetlabs.com> - 2.6.3-1
+- Package for ED
