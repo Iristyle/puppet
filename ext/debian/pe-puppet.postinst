@@ -1,0 +1,46 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = "configure" ]; then
+
+    # Create the "pe-puppet" user
+    if ! getent passwd pe-puppet > /dev/null; then
+        adduser --quiet --system --group --home /var/opt/lib/pe-puppet \
+            --gecos "Puppet configuration management daemon" \
+            pe-puppet
+    fi
+
+    # Set correct permissions and ownership for puppet log directory
+    if ! dpkg-statoverride --list /var/log/pe-puppet >/dev/null 2>&1; then
+        dpkg-statoverride --update --add pe-puppet pe-puppet 0750 /var/log/pe-puppet
+    fi
+
+    chown pe-puppet:pe-puppet /var/log/pe-puppet
+
+    # Change the ownership of /var/opt/lib/pe-puppet so that puppet daemons
+    # can create ~/.puppet when run under the puppet user
+    # (ex: under passenger).
+    chown pe-puppet:pe-puppet /var/opt/lib/pe-puppet
+
+    # Create folders common to "puppet" and "puppetmaster", which need
+    # to be owned by the "puppet" user
+    install --owner pe-puppet --group pe-puppet --directory \
+        /var/opt/lib/pe-puppet/state
+
+    # These should be executable
+    chmod +x /opt/puppet/share/puppet/ext/puppet-load.rb
+    chmod +x /opt/puppet/share/puppet/ext/regexp_nodes/regexp_nodes.rb
+
+    # Handle
+    if [ -d /etc/puppetlabs/puppet/ssl ] && [ ! -e /var/opt/lib/pe-puppet/ssl ] && grep -q 'ssldir=/var/opt/lib/pe-puppet/ssl' /etc/puppetlabs/puppet/puppet.conf; then
+        mv /etc/puppetlabs/puppet/ssl /var/opt/lib/puppet/ssl
+    fi
+
+    # Move old default file if it exists
+    if [ -f /etc/default/pe-puppet-agent ]; then
+      mv /etc/default/pe-puppet-agent /etc/default/pe-puppet
+    fi
+fi
+
+#DEBHELPER#

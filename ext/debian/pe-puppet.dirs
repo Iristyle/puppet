@@ -1,0 +1,12 @@
+etc/puppetlabs/puppet
+etc/puppetlabs/puppet/manifests
+etc/puppetlabs/puppet/modules
+etc/puppetlabs/puppet/templates
+opt/puppet/bin
+opt/puppet/lib/ruby/site_ruby/1.9.1
+opt/puppet/share/man/man5
+opt/puppet/share/man/man8
+opt/puppet/share/puppet/ext
+opt/puppet/share/puppet/modules
+var/log/pe-puppet
+var/opt/lib/pe-puppet/ssl

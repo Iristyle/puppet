@@ -1,0 +1,10 @@
+dir-or-file-in-opt opt/puppet/
+manpage-has-bad-whatis-entry
+manpage-has-errors-from-man
+pe-puppet: ruby-script-but-no-ruby-dep opt/puppet/bin/extlookup2hiera
+pe-puppet: ruby-script-but-no-ruby-dep opt/puppet/bin/puppet
+pe-puppet: ruby-script-but-no-ruby-dep opt/puppet/share/puppet/ext/cert_inspector
+pe-puppet: ruby-script-but-no-ruby-dep opt/puppet/share/puppet/ext/nagios/naggen
+pe-puppet: ruby-script-but-no-ruby-dep opt/puppet/share/puppet/ext/puppet-test
+pe-puppet: wrong-path-for-interpreter opt/puppet/bin/extlookup2hiera (#!/opt/puppet/bin/ruby != /usr/bin/ruby)
+pe-puppet: wrong-path-for-interpreter opt/puppet/bin/puppet (#!/opt/puppet/bin/ruby != /usr/bin/ruby)

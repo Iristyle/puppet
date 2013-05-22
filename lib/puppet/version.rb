@@ -7,7 +7,24 @@
 
 
 module Puppet
-  PUPPETVERSION = '3.2.1-rc1'
+  # Support reading the PE version data written by the installer and
+  # annotating the version number displayed to inform the client.
+  PEVersionFile = '/opt/puppet/pe_version'
+  if File.readable? PEVersionFile then
+    if File.zero? PEVersionFile then
+      PEVersion = ""
+    else
+      PEVersion = " #{File.new(PEVersionFile).gets}"
+    end
+  else
+    PEVersion = nil
+  end
+
+  if PEVersion then
+    PUPPETVERSION = '3.2.1-rc1 (Puppet Enterprise%s)' % PEVersion.to_s.rstrip.chomp
+  else
+    PUPPETVERSION = '3.2.1-rc1'
+  end
 
   ##
   # version is a public API method intended to always provide a fast and
