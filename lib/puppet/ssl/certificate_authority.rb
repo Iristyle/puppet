@@ -260,7 +260,7 @@ class Puppet::SSL::CertificateAuthority
         Puppet.crit "Something terribly wrong checking license status"
       end
     end
-    if Puppet[:run_mode].to_sym == :master
+    if Puppet[:run_mode] && Puppet[:run_mode].to_sym == :master
       t = Thread.fork { proc.call }
       at_exit { t.join }
     else
