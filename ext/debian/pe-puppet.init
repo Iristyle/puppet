@@ -35,7 +35,7 @@ reload_puppet_agent() {
 
 start_puppet_agent() {
     if is_true "$START" ; then
-        start-stop-daemon --start --quiet --pidfile $PIDFILE \
+        start-stop-daemon --start --oknodo --quiet --pidfile $PIDFILE \
             --startas $DAEMON -- $NAME $DAEMON_OPTS
     else
         echo ""
