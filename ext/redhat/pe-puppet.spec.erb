@@ -142,7 +142,9 @@ for f in external/nagios.rb  relationship.rb; do
   sed -i -e '1d' lib/puppet/$f
 done
 
-find examples/ -type f | xargs --no-run-if-empty chmod a-x
+for f in `find examples/ -type f`; do
+  chmod a-x $f
+done
 
 %install
 rm -rf %{buildroot}
