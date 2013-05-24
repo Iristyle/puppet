@@ -214,11 +214,11 @@ for file in aix \
             vim \
             debian \
             osx \
+            redhat \
             build_defaults.yaml \
             project_data.yaml ; do
   rm -rf %{buildroot}%{_datadir}/%{_name}/ext/$file ;
 done
-rm -f %{buildroot}%{_datadir}/%{name}/ext/redhat/*.init
 
 for file in `find %{buildroot}%{_datadir}/%{_name}/ext -type f`; do
     sed -i -e '1s,^#!.*ruby$,#!/opt/puppet/bin/ruby,' $file
