@@ -5,10 +5,21 @@
 %global realversion    <%= @version %>
 %global rpmversion     <%= @rpmversion %>
 
-%global confdir        ext/redhat
-
 %global facter_version 1.6.0
-%global rails_version  2.3.16
+
+%if "%{_os}" == "aix"
+  %{!?_aix: %global _aix 1}
+%endif
+
+# macros required because of AIX old-n-bustedness
+%if 0%{?_aix}
+  %global _initddir    /etc/rc.d/init.d
+  %global _initrddir   /etc/rc.d/init.d
+  %global __patch      /opt/freeware/bin/patch
+  %global confdir      ext/aix
+%else
+  %global confdir      ext/redhat
+%endif
 
 %if 0%{?p_vendor:1}
     %global name_prefix      %{p_vendor}-
@@ -20,7 +31,7 @@
     # Grab the "real" directories so we can reference the system's files.
     %{!?_real_initrddir:     %global _real_initrddir     %{_initrddir}}
     %{!?_real_localstatedir: %global _real_localstatedir %{_localstatedir}}
-    %{!?_real_sysconfdir:    %global _real_sysconfdir    %{_sysconfdir}}
+    %{!?_real_sysconfdir:    %global _real_sysconfdir    /etc}
 
     # Use the alternate locations for things.
     %global _initrddir       %{_real_initrddir}
@@ -53,7 +64,25 @@ BuildArch:      noarch
 BuildRequires:  %{?name_prefix}facter >= %{facter_version}
 BuildRequires:  %{?name_prefix}ruby
 
+# coreutils & sed needed for AIX builds explicitly, but we don't build shadow
+# for AIX so we don't have it as a runtime dependency
+%if 0%{?_aix}
+BuildRequires:  coreutils sed
+%endif
+
+%if 0%{!?_aix}
 Requires:       %{?name_prefix}ruby-shadow
+Requires:       shadow-utils
+%endif
+
+%if 0%{?suse_version}
+Requires:       aaa_base
+%endif
+%if 0%{?rhel}
+Requires:       chkconfig
+Requires:       initscripts
+%endif
+
 Requires:       %{?name_prefix}facter >= %{facter_version}
 Requires:       %{?name_prefix}ruby
 Requires:       %{?name_prefix}ruby-rgen
@@ -69,16 +98,6 @@ Provides:       pe-rubygem-hiera-puppet >= 1.0.0
 Provides:       pe-rubygem(hiera-puppet) >= 1.0.0
 
 
-Requires(pre):    shadow-utils
-%if 0%{?suse_version}
-Requires:         aaa_base
-%else
-Requires(post):   chkconfig
-Requires(preun):  chkconfig
-Requires(preun):  initscripts
-Requires(postun): initscripts
-%endif
-
 %description
 Puppet lets you centrally manage every important aspect of your system using a
 cross-platform specification language that manages all the separate elements
@@ -93,17 +112,16 @@ along with obviously discrete elements like packages, services, and files.
 }
 
 %package server
-Group:            System Environment/Base
-Summary:          Server for the puppet system management tool
-Requires:         %{?name_prefix}%{_name} = %{version}-%{release}
-Requires:         %{?name_prefix}rubygem-activerecord   >= %{rails_version}
+Group:          System Environment/Base
+Summary:        Server for the puppet system management tool
+Requires:       %{?name_prefix}%{_name} = %{version}-%{release}
+
 %if 0%{?suse_version}
-Requires:         aaa_base
-%else
-Requires(post):   chkconfig
-Requires(preun):  chkconfig
-Requires(preun):  initscripts
-Requires(postun): initscripts
+Requires:       aaa_base
+%endif
+%if 0%{?rhel}
+Requires:       chkconfig
+Requires:       initscripts
 %endif
 
 %description server
@@ -125,6 +143,10 @@ find examples/ -type f | xargs --no-run-if-empty chmod a-x
 
 %install
 rm -rf %{buildroot}
+%if 0%{?_aix}
+  export PATH=/opt/freeware/bin:$PATH
+%endif
+
 %{ruby} install.rb --destdir=%{buildroot} --quick --no-rdoc
 
 install -d -m0755 %{buildroot}%{_localstatedir}/opt/lib/%{name}master
@@ -135,22 +157,32 @@ touch %{buildroot}%{_sysconfdir}/httpd/conf.d/puppetmaster.conf
 # Remove unwanted files produced by "install.rb", such as "auth.conf" which we're installing in a different place.
 rm -rf %{buildroot}/etc/puppet
 
+%if 0%{?_aix}
+install -d -m0755 %{buildroot}%{_localstatedir}/lib/%{name}
+%else
+install -d -m0755 %{buildroot}%{_localstatedir}/opt/lib/%{name}
+%endif
+
 install -d -m0755 %{buildroot}%{_sysconfdir}/%{_name}/manifests
 install -d -m0755 %{buildroot}%{_sysconfdir}/%{_name}/modules
 install -d -m0755 %{buildroot}%{_sysconfdir}/%{_name}/files
 install -d -m0755 %{buildroot}%{_datadir}/%{_name}/modules
-install -d -m0755 %{buildroot}%{_localstatedir}/opt/lib/%{name}
 install -d -m0755 %{buildroot}%{_localstatedir}/run/%{name}
 install -d -m0750 %{buildroot}%{_localstatedir}/log/%{name}
+
 %if 0%{?suse_version}
 install -Dp -m0755 %{confdir}/%{name}-client.init.suse %{buildroot}%{_initrddir}/%{name}
-%else
+%endif
+%if 0%{?rhel}
 install -Dp -m0755 %{confdir}/%{name}-client.init %{buildroot}%{_initrddir}/%{name}
 %endif
+%if 0%{!?_aix}
+install -Dp -m0644 %{confdir}/%{name}-logrotate %{buildroot}%{_real_sysconfdir}/logrotate.d/%{name}
+%endif
+
 install -Dp -m0644 %{confdir}/%{name}-fileserver.conf %{buildroot}%{_sysconfdir}/%{_name}/fileserver.conf
 install -Dp -m0644 %{confdir}/%{name}.conf %{buildroot}%{_sysconfdir}/%{_name}/puppet.conf
 install -Dp -m0644 conf/auth.conf %{buildroot}%{_sysconfdir}/%{_name}/auth.conf
-install -Dp -m0644 %{confdir}/%{name}-logrotate %{buildroot}%{_real_sysconfdir}/logrotate.d/%{name}
 
 # Add tests from spec dir
 #install -d -m0755 %{buildroot}%{ruby_sitelibdir}/puppet/spec
@@ -165,7 +197,8 @@ chmod +x %{buildroot}%{_datadir}/%{_name}/ext/regexp_nodes/regexp_nodes.rb
 
 # emacs and vim bits aren't installed and we remove packaging
 # artifacts not applicable to rpm
-for file in solaris \
+for file in aix \
+            solaris \
             suse \
             systemd \
             windows \
@@ -192,11 +225,13 @@ done
 %{_bindir}/puppet
 %{_bindir}/extlookup2hiera
 %{ruby_sitelibdir}/*
-%{_initrddir}/%{name}
 %dir %{_sysconfdir}/%{_name}
 %config(noreplace) %{_sysconfdir}/%{_name}/puppet.conf
 %config(noreplace) %{_sysconfdir}/%{_name}/auth.conf
+%if 0%{!?_aix}
+%{_initrddir}/%{name}
 %config(noreplace) %{_real_sysconfdir}/logrotate.d/%{name}
+%endif
 %{_datadir}/%{_name}
 %{_mandir}/man5/puppet.conf.5.gz
 %{_mandir}/man8/puppet.8.gz
@@ -242,7 +277,11 @@ done
 %{_localstatedir}/run/%{name}
 %defattr(-, %{?name_prefix}puppet, %{?name_prefix}puppet, 0750)
 %{_localstatedir}/log/%{name}
+%if 0%{?_aix}
+%{_localstatedir}/lib/%{name}
+%else
 %{_localstatedir}/opt/lib/%{name}
+%endif
 
 %files server
 %defattr(-, root, %{?name_prefix}puppet, 0755)
@@ -255,6 +294,11 @@ done
 %{_mandir}/man8/puppet-master.8.gz
 
 %pre
+%if 0%{?_aix}
+export PATH=/usr/bin:/usr/sbin:$PATH
+mkgroup puppet  > /dev/null 2>&1 || :
+mkdir -p %{_localstatedir}/lib/%{name} && useradd -g puppet -d %{_localstatedir}/lib/%{name} -c "Enterprise Distribution Puppet" puppet  > /dev/null 2>&1 || :
+%else
 getent group %{?name_prefix}puppet &>/dev/null || groupadd -r %{?name_prefix}puppet &>/dev/null
 getent passwd %{?name_prefix}puppet &>/dev/null || \
 useradd -r -g %{?name_prefix}puppet -d %{_localstatedir}/opt/lib/%{name} -s /sbin/nologin \
@@ -263,21 +307,45 @@ useradd -r -g %{?name_prefix}puppet -d %{_localstatedir}/opt/lib/%{name} -s /sbi
 if [ $1 -gt 1 ] ; then
   usermod -d %{_localstatedir}/opt/lib/%{name} %{?name_prefix}puppet &>/dev/null
 fi
+%endif
 exit 0
 
 %post
+%if 0%{?_aix}
+export PATH=/usr/bin:/usr/sbin:$PATH
+# Add pe-puppet as a subsystem in AIX
+mkssys -p /opt/puppet/bin/ruby -s pe-puppet -u root -a '/opt/puppet/bin/puppet agent --no-daemonize' -w 7 -S -n 15 -f 9 > /dev/null  2>&1 || :
+mkitab pe-puppet:2:once:startsrc -s pe-puppet > /dev/null 2>&1 || :
+%else
 /sbin/chkconfig --add %{name} || :
+%endif
 
 %preun
+%if 0%{?_aix}
+export PATH=/usr/bin:$PATH
+stopsrc -s pe-puppet > /dev/null 2>&1 || :
+%else
 if [ "$1" = 0 ] ; then
   /sbin/service %{name} stop > /dev/null 2>&1
   /sbin/chkconfig --del %{name} || :
 fi
+%endif
 
 %postun
+%if 0%{?_aix}
+export PATH=/usr/bin:/usr/sbin:$PATH
+if [ "$1" -eq 0 ]; then
+  userdel puppet || :
+  rmgroup puppet || :
+  # Remove pe-puppet subsystem from AIX
+  rmssys -s pe-puppet > /dev/null 2>&1 || :
+  rmitab pe-puppet  > /dev/null 2>&1 || :
+fi
+%else
 if [ "$1" -ge 1 ]; then
   /sbin/service %{name} reload >/dev/null 2>&1 || :
 fi
+%endif
 
 %clean
 rm -rf %{buildroot}
