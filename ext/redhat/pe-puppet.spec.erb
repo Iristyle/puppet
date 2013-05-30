@@ -46,6 +46,12 @@
 
 %define ruby          %{_bindir}/ruby
 
+# On AIX, the puppet user is just "puppet" not "pe-puppet"
+%if 0%{?_aix}
+  %global puppetuser puppet
+%else
+  %global puppetuser %{name_prefix}puppet
+%endif
 
 Name:           %{?name_prefix}%{_name}
 Version:        %{rpmversion}
@@ -282,9 +288,9 @@ done
 # write to them. Because of RH Bugzilla 681540, we use
 # multiple defattrs instead of attrs to future proof for
 # new versions of rpm
-%defattr(-, %{?name_prefix}puppet, %{?name_prefix}puppet, 0755)
+%defattr(-, %{puppetuser}, %{puppetuser}, 0755)
 %{_localstatedir}/run/%{name}
-%defattr(-, %{?name_prefix}puppet, %{?name_prefix}puppet, 0750)
+%defattr(-, %{puppetuser}, %{puppetuser}, 0750)
 %{_localstatedir}/log/%{name}
 %if 0%{?_aix}
 %{_localstatedir}/lib/%{name}
@@ -293,7 +299,7 @@ done
 %endif
 
 %files server
-%defattr(-, root, %{?name_prefix}puppet, 0755)
+%defattr(-, root, %{puppetuser}, 0755)
 %config(noreplace) %{_sysconfdir}/%{_name}/fileserver.conf
 %dir %{_sysconfdir}/%{_name}/manifests
 %dir %{_sysconfdir}/%{_name}/modules
@@ -305,16 +311,17 @@ done
 %pre
 %if 0%{?_aix}
 export PATH=/usr/bin:/usr/sbin:$PATH
-mkgroup puppet  > /dev/null 2>&1 || :
-mkdir -p %{_localstatedir}/lib/%{name} && useradd -g puppet -d %{_localstatedir}/lib/%{name} -c "Enterprise Distribution Puppet" puppet  > /dev/null 2>&1 || :
+lsgroup %{puppetuser} >/dev/null 2>&1 ||  mkgroup %{puppetuser} >/dev/null 2>&1
+[ -d %{_localstatedir}/lib/%{name} ] || mkdir -p %{_localstatedir}/lib/%{name}
+lsuser %{puppetuser} >/dev/null 2>&1 || useradd -g %{puppetuser} -d %{_localstatedir}/lib/%{name} -c "Enterprise Distribution Puppet" %{puppetuser}  > /dev/null 2>&1 || :
 %else
-getent group %{?name_prefix}puppet &>/dev/null || groupadd -r %{?name_prefix}puppet &>/dev/null
-getent passwd %{?name_prefix}puppet &>/dev/null || \
-useradd -r -g %{?name_prefix}puppet -d %{_localstatedir}/opt/lib/%{name} -s /sbin/nologin \
-    -c "Enterprise Distribution Puppet" %{?name_prefix}puppet &>/dev/null
+getent group %{puppetuser} &>/dev/null || groupadd -r %{puppetuser} &>/dev/null
+getent passwd %{puppetuser} &>/dev/null || \
+useradd -r -g %{puppetuser} -d %{_localstatedir}/opt/lib/%{name} -s /sbin/nologin \
+    -c "Enterprise Distribution Puppet" %{puppetuser} &>/dev/null
 # ensure that old setups have the right puppet home dir
 if [ $1 -gt 1 ] ; then
-  usermod -d %{_localstatedir}/opt/lib/%{name} %{?name_prefix}puppet &>/dev/null
+  usermod -d %{_localstatedir}/opt/lib/%{name} %{puppetuser} &>/dev/null
 fi
 %endif
 exit 0
