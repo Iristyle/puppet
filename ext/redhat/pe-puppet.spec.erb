@@ -135,6 +135,10 @@ The server can also function as a certificate authority and file server.
 %setup -q -n %{name}-%{realversion}
 
 %build
+%if 0%{?_aix}
+export PATH=/opt/freeware/bin:$PATH
+%endif
+
 # Fix some rpmlint complaints
 # FIXME post 2.7.6
 #for f in external/nagios.rb network/http_server/mongrel.rb relationship.rb; do
@@ -149,7 +153,7 @@ done
 %install
 rm -rf %{buildroot}
 %if 0%{?_aix}
-  export PATH=/opt/freeware/bin:$PATH
+export PATH=/opt/freeware/bin:$PATH
 %endif
 
 %{ruby} install.rb --destdir=%{buildroot} --quick --no-rdoc
