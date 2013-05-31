@@ -101,7 +101,11 @@ Provides:       pe-rubygem-puppet-module
 Provides:       pe-rubygem(puppet-module) >= 0.3.4
 Provides:       pe-rubygem-hiera-puppet >= 1.0.0
 Provides:       pe-rubygem(hiera-puppet) >= 1.0.0
-
+# AIX rpm 3.0.5 doesn't add an automatic provides of self, so we have to do it
+# manually
+%if 0%{?_aix}
+Provides:       %{name} = %{version}-%{release}
+%endif
 
 %description
 Puppet lets you centrally manage every important aspect of your system using a
@@ -123,6 +127,10 @@ along with obviously discrete elements like packages, services, and files.
 Group:          System Environment/Base
 Summary:        Server for the puppet system management tool
 Requires:       %{?name_prefix}%{_name} = %{version}-%{release}
+%if 0%{?_aix}
+Provides:       %{name}-server = %{version}-%{release}
+%endif
+
 
 %if 0%{?suse_version}
 Requires:       aaa_base
