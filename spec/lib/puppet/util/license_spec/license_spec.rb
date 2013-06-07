@@ -1,24 +1,22 @@
 require 'puppet/util/license'
 require 'date'
 require 'rational'
+require 'spec_helper'
 
 def make_me_a_fake_ca(nodes = [])
   all_nodes = ['ca'] + Array(nodes)
 
-  ca = double()
-  ca.should_receive(:list){all_nodes}.once
+  ca = stub( :list => all_nodes )
   nodes.each do |node|
-    ca.should_receive(:verify).with(node).once
+    ca.expects(:verify).with(node).once
   end
-  Puppet::SSL::CertificateAuthority.stub(:new){ ca }.once
+  Puppet::SSL::CertificateAuthority.stubs(:new).returns(ca)
 
-  Puppet::SSL::CertificateAuthority.should_receive(:ca?){ true }.once
+  Puppet::SSL::CertificateAuthority.expects(:ca?).returns(true).once
 end
 
 def make_me_a_fake_license(content)
-  YAML.should_receive(:load_file).with(Puppet::Util::License::LicenseKey) {
-    YAML.load(content)
-  }.once
+  YAML.expects(:load_file).with(Puppet::Util::License::LicenseKey).returns(YAML.load(content)).once
 end
 
 describe Puppet::Util::License do
@@ -45,7 +43,7 @@ describe Puppet::Util::License do
 
   describe "display_license_status when not a CA" do
     it "should return false when we are not a CA" do
-      Puppet::SSL::CertificateAuthority.should_receive(:ca?) { false }
+      Puppet::SSL::CertificateAuthority.expects(:ca?).returns(false)
       Puppet::Util::License.display_license_status.should == false
     end
   end
@@ -56,17 +54,16 @@ describe Puppet::Util::License do
 
       # Now, ensure we say we are a CA...
       before :each do
-        Puppet::SSL::CertificateAuthority.should_receive(:ca?){ true }.once
+        make_me_a_fake_ca
       end
 
       it "should complain and return true when the license file is invalid YAML" do
         # Environment.
-        make_me_a_fake_license "{ invalidly formatted yaml here, my friend )"
+        YAML.expects(:load_file).with(Puppet::Util::License::LicenseKey).raises(Psych::SyntaxError, "(<unknown>): did not find expected ',' or '}' while parsing a flow mapping at line 1 column 1")
 
         # Expected behaviours.
-        Puppet.should_receive(:crit).once.
-          with(/Your License is incorrectly formatted or corrupted/).
-          with(/syntax error on line \d+, col \d+:/)
+        Puppet.expects(:crit).once.
+          with(regexp_matches(/Your License is incorrectly formatted or corrupted/))
 
         # Invocation.
         Puppet::Util::License.display_license_status.should == true
@@ -80,9 +77,9 @@ describe Puppet::Util::License do
             make_me_a_fake_license "#{w}: #{d}\n"
 
             # Expected behaviours.
-            Puppet.should_receive(:crit).once.
-              with(/Your License is incorrectly formatted or corrupted/).
-              with(/The #{w} value .* is improper/)
+            Puppet.expects(:crit).once.
+              with(regexp_matches(/Your License is incorrectly formatted or corrupted/)).
+              with(regexp_matches(/The #{w} value .* is improper/))
 
             # Invocation
             Puppet::Util::License.display_license_status.should == true
@@ -95,9 +92,9 @@ describe Puppet::Util::License do
           make_me_a_fake_license "nodes: #{n.inspect}\n"
 
           # Expected behaviours.
-          Puppet.should_receive(:crit).once.
-            with(/Your License is incorrectly formatted or corrupted/).
-            with(/The node count .* is improper/)
+          Puppet.expects(:crit).once.
+            with(regexp_matches(/Your License is incorrectly formatted or corrupted/)).
+            with(regexp_matches /The node count .* is improper/)
 
           # Invocation
           Puppet::Util::License.display_license_status.should == true
@@ -108,18 +105,16 @@ describe Puppet::Util::License do
     describe "display_license_status with no license file (complimentary license)" do
 
       before :each do
-        YAML.should_receive(:load_file).with(Puppet::Util::License::LicenseKey) {
-          raise Errno::ENOENT, "file not found"
-        }.once
+        YAML.expects(:load_file).with(Puppet::Util::License::LicenseKey).raises(Errno::ENOENT, "file not found").once
       end
 
       it "should be happy when there are no nodes other than the CA" do
         make_me_a_fake_ca
 
-        Puppet.stub :notice
-        Puppet.should_receive(:notice).with(/You have no active and no inactive nodes./)
-        Puppet.should_receive(:notice).with(/You are currently licensed for #{free_licenses} active nodes./)
-        Puppet.should_receive(:notice).with(/complimentary license does not include Support & Maintenance/)
+        Puppet.stubs :notice
+        Puppet.expects(:notice).with(regexp_matches /You have no active and no inactive nodes./)
+        Puppet.expects(:notice).with(regexp_matches /You are currently licensed for #{free_licenses} active nodes./)
+        Puppet.expects(:notice).with(regexp_matches /complimentary license does not include Support & Maintenance/)
 
         # Invocation
         Puppet::Util::License.display_license_status.should == true
@@ -128,10 +123,10 @@ describe Puppet::Util::License do
       it "should work when there are exactly the free node limit of nodes in the CA" do
         make_me_a_fake_ca 1.upto(free_licenses).collect { |i| "node%s" % i }
 
-        Puppet.stub :notice
-        Puppet.should_receive(:notice).with(/You have #{free_licenses} active and no inactive nodes./)
-        Puppet.should_receive(:notice).with(/You are currently licensed for #{free_licenses} active nodes./)
-        Puppet.should_receive(:notice).with(/complimentary license does not include Support & Maintenance/)
+        Puppet.stubs :notice
+        Puppet.expects(:notice).with(regexp_matches /You have #{free_licenses} active and no inactive nodes./)
+        Puppet.expects(:notice).with(regexp_matches /You are currently licensed for #{free_licenses} active nodes./)
+        Puppet.expects(:notice).with(regexp_matches /complimentary license does not include Support & Maintenance/)
 
         # Invocation
         Puppet::Util::License.display_license_status.should == true
@@ -140,13 +135,13 @@ describe Puppet::Util::License do
       it "should complain when there are more than the free node limit in the CA" do
         make_me_a_fake_ca 1.upto(free_licenses + 1).collect { |i| "node%s" % i }
 
-        Puppet.stub :alert
-        Puppet.should_receive(:alert).with(/You have #{free_licenses + 1} active and no inactive nodes./)
-        Puppet.should_receive(:alert).with(/You are currently licensed for #{free_licenses} active nodes/)
-        Puppet.should_receive(:alert).with(/You are using a complimentary ten node license/)
-        Puppet.should_receive(:alert).with(/have exceeded .* by 1 active node!/)
-        Puppet.should_receive(:alert).with(/contact Puppet Labs to obtain additional licenses/)
-        Puppet.should_receive(:alert).with(/does not include Support & Maintenance/)
+        Puppet.stubs :alert
+        Puppet.expects(:alert).with(regexp_matches /You have #{free_licenses + 1} active and no inactive nodes./)
+        Puppet.expects(:alert).with(regexp_matches /You are currently licensed for #{free_licenses} active nodes/)
+        Puppet.expects(:alert).with(regexp_matches /You are using a complimentary ten node license/)
+        Puppet.expects(:alert).with(regexp_matches /have exceeded .* by 1 active node!/)
+        Puppet.expects(:alert).with(regexp_matches /contact Puppet Labs to obtain additional licenses/)
+        Puppet.expects(:alert).with(regexp_matches /does not include Support & Maintenance/)
 
         # Invocation
         Puppet::Util::License.display_license_status.should == true
@@ -165,10 +160,10 @@ describe Puppet::Util::License do
           date = (Date.today - time).to_s
           make_me_a_fake_license "nodes: 10\nend: #{date}\n"
 
-          Puppet.stub :alert
-          Puppet.should_receive(:alert).with(/Your Support & Maintenance agreement expired on #{date}/)
-          Puppet.should_receive(:alert).with(/You have run for #{time} #{word} without a support agreement/)
-          Puppet.should_receive(:alert).with(/You can reach Puppet Labs for sales, support, or maintenance agreements/)
+          Puppet.stubs :alert
+          Puppet.expects(:alert).with(regexp_matches /Your Support & Maintenance agreement expired on #{date}/)
+          Puppet.expects(:alert).with(regexp_matches /You have run for #{time} #{word} without a support agreement/)
+          Puppet.expects(:alert).with(regexp_matches /You can reach Puppet Labs for sales, support, or maintenance agreements/)
 
           Puppet::Util::License.display_license_status.should == true
         end
@@ -180,10 +175,10 @@ describe Puppet::Util::License do
           date = (Date.today + time).to_s
           make_me_a_fake_license "nodes: 10\nend: #{date}\n"
 
-          Puppet.stub :warning
-          Puppet.should_receive(:warning).with(/Your Support & Maintenance term expires on #{date}/)
-          Puppet.should_receive(:warning).with(/You have #{time} #{word} remaining under that agreement;/)
-          Puppet.should_receive(:warning).with(/You can reach Puppet Labs for sales, support, or maintenance agreements/)
+          Puppet.stubs :warning
+          Puppet.expects(:warning).with(regexp_matches /Your Support & Maintenance term expires on #{date}/)
+          Puppet.expects(:warning).with(regexp_matches /You have #{time} #{word} remaining under that agreement;/)
+          Puppet.expects(:warning).with(regexp_matches /You can reach Puppet Labs for sales, support, or maintenance agreements/)
 
           Puppet::Util::License.display_license_status.should == true
         end
@@ -193,8 +188,8 @@ describe Puppet::Util::License do
 
         make_me_a_fake_license "nodes: 1\n"
 
-        Puppet.stub :notice
-        Puppet.should_not_receive(:notice).with(/renew your Support & Maintenance agreement/)
+        Puppet.stubs :notice
+        Puppet.expects(:notice).with(regexp_matches /renew your Support & Maintenance agreement/).never
 
         Puppet::Util::License.display_license_status.should == true
       end
@@ -204,8 +199,8 @@ describe Puppet::Util::License do
 
           make_me_a_fake_license "nodes: 1\n#{word}: 2020-09-29"
 
-          Puppet.stub :notice
-          Puppet.should_receive(:notice).with(/Your support and maintenance agreement #{word}s on 2020-09-29/)
+          Puppet.stubs :notice
+          Puppet.expects(:notice).with(regexp_matches /Your support and maintenance agreement #{word}s on 2020-09-29/)
 
           Puppet::Util::License.display_license_status.should == true
         end
@@ -215,9 +210,9 @@ describe Puppet::Util::License do
 
         make_me_a_fake_license "nodes: 10\nto: zaphod\n"
 
-        Puppet.stub :notice
-        Puppet.should_receive(:notice).with(/This Puppet Enterprise distribution is licensed to:/)
-        Puppet.should_receive(:notice).with(/zaphod/)
+        Puppet.stubs :notice
+        Puppet.expects(:notice).with(regexp_matches /This Puppet Enterprise distribution is licensed to:/)
+        Puppet.expects(:notice).with(regexp_matches /zaphod/)
 
         Puppet::Util::License.display_license_status.should == true
       end
@@ -226,8 +221,8 @@ describe Puppet::Util::License do
 
         make_me_a_fake_license "nodes: 1\nto: zaphod\n"
 
-        Puppet.stub :notice
-        Puppet.should_not_receive(:notice).with(/Your complimentary license/)
+        Puppet.stubs :notice
+        Puppet.expects(:notice).with(regexp_matches /Your complimentary license/).never
 
         Puppet::Util::License.display_license_status.should == true
       end

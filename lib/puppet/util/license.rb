@@ -135,7 +135,7 @@ You are using a complimentary ten node license provided free by Puppet Labs."
 
     if license["end"] && Date.today > license["end"] then
       error = true
-      late = Date.today - license["end"]
+      late = (Date.today - license["end"]).to_i
 
       text << ""
       text << "Your Support & Maintenance agreement expired on #{license["end"]}!"
@@ -143,7 +143,7 @@ You are using a complimentary ten node license provided free by Puppet Labs."
       text << "Puppet Labs urgently to renew your Support & Maintenance agreement."
     elsif license["end"] && (Date.today + 30) >= license["end"] then
       warning = true
-      left = license["end"] - Date.today
+      left = (license["end"] - Date.today).to_i
 
       text << ""
       text << "Your Support & Maintenance term expires on #{license["end"]}."
