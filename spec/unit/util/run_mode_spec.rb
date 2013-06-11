@@ -16,8 +16,8 @@ describe Puppet::Util::RunMode do
     end
 
     describe "#conf_dir" do
-      it "has confdir /etc/puppet when run as root" do
-        as_root { @run_mode.conf_dir.should == File.expand_path('/etc/puppet') }
+      it "has confdir /etc/puppetlabs/puppet when run as root" do
+        as_root { @run_mode.conf_dir.should == File.expand_path('/etc/puppetlabs/puppet') }
       end
 
       it "has confdir ~/.puppet when run as non-root" do
@@ -43,8 +43,8 @@ describe Puppet::Util::RunMode do
     end
 
     describe "#var_dir" do
-      it "has vardir /var/lib/puppet when run as root" do
-        as_root { @run_mode.var_dir.should == File.expand_path('/var/lib/puppet') }
+      it "has vardir /var/opt/lib/pe-puppet when run as root" do
+        as_root { @run_mode.var_dir.should == File.expand_path('/var/opt/lib/pe-puppet') }
       end
 
       it "has vardir ~/.puppet/var when run as non-root" do
@@ -77,7 +77,7 @@ describe Puppet::Util::RunMode do
     end
 
     describe "#conf_dir" do
-      it "has confdir /etc/puppet when run as root" do
+      it "has confdir /etc/puppetlabs/puppet when run as root" do
         as_root { @run_mode.conf_dir.should == File.expand_path(File.join(Dir::COMMON_APPDATA, "PuppetLabs", "puppet", "etc")) }
       end
 
