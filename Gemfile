@@ -14,7 +14,7 @@ end
 platforms :ruby do
   gem 'pry', :group => :development
   gem 'yard', :group => :development
-  gem 'redcarpet', :group => :development
+  gem 'redcarpet', '~> 2.0', :group => :development
   gem "racc", "~> 1.4", :group => :development
 end
 
@@ -22,11 +22,22 @@ gem "puppet", :path => File.dirname(__FILE__), :require => false
 gem "facter", *location_for(ENV['FACTER_LOCATION'] || '~> 1.6')
 gem "hiera", *location_for(ENV['HIERA_LOCATION'] || '~> 1.0')
 gem "rake", :require => false
-gem "rspec", "~> 2.11.0", :require => false
-gem "mocha", "~> 0.10.5", :require => false
 gem "rgen", "0.6.5", :require => false
 
-gem "yarjuf", "~> 1.0"
+
+group(:development, :test) do
+
+  # Jenkins workers may be using RSpec 2.9, so RSpec 2.11 syntax
+  # (like `expect(value).to eq matcher`) should be avoided.
+  gem "rspec", "~> 2.11.0", :require => false
+
+  # Mocha is not compatible across minor version changes; because of this only
+  # versions matching ~> 0.10.5 are supported. All other versions are unsupported
+  # and can be expected to fail.
+  gem "mocha", "~> 0.10.5", :require => false
+
+  gem "yarjuf", "~> 1.0"
+end
 
 group(:extra) do
   gem "rack", "~> 1.4", :require => false

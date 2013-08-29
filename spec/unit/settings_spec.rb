@@ -266,7 +266,7 @@ describe Puppet::Settings do
       @settings[:myval] = "12"
       @settings.set_by_cli?(:myval).should be_false
     end
-    
+
     describe "setbycli" do
       it "should generate a deprecation warning" do
         Puppet.expects(:deprecation_warning)
@@ -289,9 +289,15 @@ describe Puppet::Settings do
       @settings.define_settings :mysection,
           :one => { :default => "whah", :desc => "yay" },
           :two => { :default => "$one yay", :desc => "bah" }
+      @settings.expects(:unsafe_flush_cache)
       @settings[:two].should == "whah yay"
       @settings.handlearg("--one", "else")
       @settings[:two].should == "else yay"
+    end
+
+    it "should clear the cache when the preferred_run_mode is changed" do
+      @settings.expects(:flush_cache)
+      @settings.preferred_run_mode = :master
     end
 
     it "should not clear other values when setting getopt-specific values" do
@@ -477,7 +483,8 @@ describe Puppet::Settings do
           :one    => { :default => "ONE", :desc => "a" },
           :two    => { :default => "$one TWO", :desc => "b"},
           :three  => { :default => "$one $two THREE", :desc => "c"},
-          :four   => { :default => "$two $three FOUR", :desc => "d"}
+          :four   => { :default => "$two $three FOUR", :desc => "d"},
+          :five   => { :default => nil, :desc => "e" }
       FileTest.stubs(:exist?).returns true
     end
 
@@ -533,6 +540,20 @@ describe Puppet::Settings do
       @settings[:two].should == "ONE TWO"
       @settings[:one] = "one"
       @settings[:two].should == "one TWO"
+    end
+
+    describe "caching values that evaluate to false" do
+      it "caches nil" do
+        @settings.expects(:convert).once.returns nil
+        @settings[:five].should be_nil
+        @settings[:five].should be_nil
+      end
+
+      it "caches false" do
+        @settings.expects(:convert).once.returns false
+        @settings[:five].should == false
+        @settings[:five].should == false
+      end
     end
 
     it "should not cache values such that information from one environment is returned for another environment" do
@@ -984,65 +1005,53 @@ describe Puppet::Settings do
       @settings.stubs(:user_config_file).returns(@userconfig)
     end
 
-    it "should use a LoadedFile instance to determine if the file has changed" do
-      file = mock 'file'
-      Puppet::Util::LoadedFile.expects(:new).with(@file).returns file
-
-      file.expects(:changed?)
-
-      @settings.stubs(:parse)
-      @settings.reparse_config_files
-    end
-
-    it "should not create the LoadedFile instance and should not parse if the file does not exist" do
+    it "does not create the WatchedFile instance and should not parse if the file does not exist" do
       FileTest.expects(:exist?).with(@file).returns false
-      Puppet::Util::LoadedFile.expects(:new).never
+      Puppet::Util::WatchedFile.expects(:new).never
 
       @settings.expects(:parse_config_files).never
 
       @settings.reparse_config_files
     end
 
-    it "should not reparse if the file has not changed" do
-      file = mock 'file'
-      Puppet::Util::LoadedFile.expects(:new).with(@file).returns file
+    context "and watched file exists" do
+      before do
+        @watched_file = Puppet::Util::WatchedFile.new(@file)
+        Puppet::Util::WatchedFile.expects(:new).with(@file).returns @watched_file
+      end
 
-      file.expects(:changed?).returns false
+      it "uses a WatchedFile instance to determine if the file has changed" do
+        @watched_file.expects(:changed?)
 
-      @settings.expects(:parse_config_files).never
+        @settings.reparse_config_files
+      end
 
-      @settings.reparse_config_files
-    end
+      it "does not reparse if the file has not changed" do
+        @watched_file.expects(:changed?).returns false
 
-    it "should reparse if the file has changed" do
-      file = stub 'file', :file => @file
-      Puppet::Util::LoadedFile.expects(:new).with(@file).returns file
+        @settings.expects(:parse_config_files).never
 
-      file.expects(:changed?).returns true
+        @settings.reparse_config_files
+      end
 
-      @settings.expects(:parse_config_files)
+      it "reparses if the file has changed" do
+        @watched_file.expects(:changed?).returns true
 
-      @settings.reparse_config_files
-    end
+        @settings.expects(:unsafe_parse).with(@file)
 
-    it "should replace in-memory values with on-file values" do
-      # Init the value
-      text = "[main]\none = disk-init\n"
-      file = mock 'file'
-      file.stubs(:changed?).returns(true)
-      file.stubs(:file).returns(@file)
-      @settings[:one] = "init"
-      @settings.files = [file]
+        @settings.reparse_config_files
+      end
 
-      # Now replace the value
-      text = "[main]\none = disk-replace\n"
+      it "replaces in-memory values with on-file values" do
+        @watched_file.stubs(:changed?).returns(true)
+        @settings[:one] = "init"
 
-      # This is kinda ridiculous - the reason it parses twice is that
-      # it goes to parse again when we ask for the value, because the
-      # mock always says it should get reparsed.
-      @settings.stubs(:read_file).returns(text)
-      @settings.reparse_config_files
-      @settings[:one].should == "disk-replace"
+        # Now replace the value
+        text = "[main]\none = disk-replace\n"
+        @settings.stubs(:read_file).returns(text)
+        @settings.reparse_config_files
+        @settings[:one].should == "disk-replace"
+      end
     end
 
     it "should retain parameters set by cli when configuration files are reparsed" do

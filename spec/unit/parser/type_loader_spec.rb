@@ -35,7 +35,7 @@ describe Puppet::Parser::TypeLoader do
     it "should attempt to import each generated name" do
       loader.expects(:import_from_modules).with("foo/bar").returns([])
       loader.expects(:import_from_modules).with("foo").returns([])
-      loader.try_load_fqname(:hostclass, "foo::bar") { |f| false }
+      loader.try_load_fqname(:hostclass, "foo::bar")
     end
 
     it "should attempt to load each possible name going from most to least specific" do
@@ -86,9 +86,9 @@ describe Puppet::Parser::TypeLoader do
       loader = Puppet::Parser::TypeLoader.new(:myenv)
 
       Puppet::Parser::Files.expects(:find_manifests_in_modules).twice.returns ["modname", %w{/one}]
-      loader.import("myfile", '.').should_not be_empty
+      loader.import("myfile", "/path").should_not be_empty
 
-      loader.import("myfile", '.').should be_empty
+      loader.import("myfile", "/path").should be_empty
     end
   end
 
@@ -199,12 +199,6 @@ describe Puppet::Parser::TypeLoader do
   end
 
   describe "when parsing a file" do
-    it "should be able to add classes to the current resource type collection" do
-      file = tmpfile("simple_file.pp")
-      File.open(file, "w") { |f| f.puts "class foo {}" }
-      loader.import(File.basename(file), File.dirname(file))
-    end
-
     it "should create a new parser instance for each file using the current environment" do
       parser = stub 'Parser', :file= => nil, :parse => empty_hostclass
 
@@ -223,5 +217,13 @@ describe Puppet::Parser::TypeLoader do
 
       loader.parse_file("/my/file")
     end
+  end
+
+  it "should be able to add classes to the current resource type collection" do
+    file = tmpfile("simple_file.pp")
+    File.open(file, "w") { |f| f.puts "class foo {}" }
+    loader.import(File.basename(file), File.dirname(file))
+
+    loader.known_resource_types.hostclass("foo").should be_instance_of(Puppet::Resource::Type)
   end
 end

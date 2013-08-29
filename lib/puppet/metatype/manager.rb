@@ -131,7 +131,7 @@ module Manager
   def rmtype(name)
     # Then create the class.
 
-    klass = rmclass(name, :hash => @types)
+    rmclass(name, :hash => @types)
 
     singleton_class.send(:remove_method, "new#{name}") if respond_to?("new#{name}")
   end
@@ -145,7 +145,7 @@ module Manager
     @types ||= {}
 
     # We are overwhelmingly symbols here, which usually match, so it is worth
-    # having this special-case to return quickly.  Like, 25K to 300 symbols to
+    # having this special-case to return quickly.  Like, 25K symbols vs. 300
     # strings in this method. --daniel 2012-07-17
     return @types[name] if @types[name]
 

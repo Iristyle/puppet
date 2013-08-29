@@ -84,7 +84,10 @@ class Puppet::SSL::CertificateAuthority
     store = autosign_store(auto) if auto != true
 
     Puppet::SSL::CertificateRequest.indirection.search("*").each do |csr|
-      sign(csr.name) if auto == true or store.allowed?(csr.name, "127.1.1.1")
+      if auto == true or store.allowed?(csr.name, "127.1.1.1")
+        Puppet.info "Autosigning #{csr.name}"
+        sign(csr.name)
+      end
     end
   end
 
@@ -128,16 +131,18 @@ class Puppet::SSL::CertificateAuthority
   end
 
   # Generate a new certificate.
+  # @return Puppet::SSL::Certificate
   def generate(name, options = {})
     raise ArgumentError, "A Certificate already exists for #{name}" if Puppet::SSL::Certificate.indirection.find(name)
-    host = Puppet::SSL::Host.new(name)
 
     # Pass on any requested subjectAltName field.
     san = options[:dns_alt_names]
 
     host = Puppet::SSL::Host.new(name)
     host.generate_certificate_request(:dns_alt_names => san)
-    sign(name, !!san)
+    # CSR may have been implicitly autosigned, generating a certificate
+    # Or sign explicitly
+    host.certificate || sign(name, !!san)
   end
 
   # Generate our CA certificate.
@@ -404,7 +409,7 @@ class Puppet::SSL::CertificateAuthority
   #   x509store(:cache => false)
   #
   # @param [Hash] options the options used for retrieving the X509 Store
-  # @options options [Boolean] :cache whether or not to use a cached version
+  # @option options [Boolean] :cache whether or not to use a cached version
   #   of the X509 Store
   #
   # @return [OpenSSL::X509::Store]
@@ -450,7 +455,7 @@ class Puppet::SSL::CertificateAuthority
   # @author Jeff Weiss <jeff.weiss@puppetlabs.com>
   # @api Puppet Enterprise Licensing
   #
-  # @param [Puppet::SSL::Certificate] the certificate to check validity of
+  # @param cert [Puppet::SSL::Certificate] the certificate to check validity of
   #
   # @return [Boolean] true if signed, false if unsigned or revoked
   def certificate_is_alive?(cert)
@@ -461,7 +466,7 @@ class Puppet::SSL::CertificateAuthority
   # the indirector will be used to locate the actual contents of the
   # certificate with that name.
   #
-  # @param [String] certificate name to verify
+  # @param name [String] certificate name to verify
   #
   # @raise [ArgumentError] if the certificate name cannot be found
   #   (i.e. doesn't exist or is unsigned)

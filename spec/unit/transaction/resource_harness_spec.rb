@@ -11,13 +11,11 @@ describe Puppet::Transaction::ResourceHarness do
     @mode_755 = Puppet.features.microsoft_windows? ? '644' : '755'
     path = make_absolute("/my/file")
 
-    @transaction = Puppet::Transaction.new(Puppet::Resource::Catalog.new)
+    @transaction = Puppet::Transaction.new(Puppet::Resource::Catalog.new, nil, nil)
     @resource = Puppet::Type.type(:file).new :path => path
     @harness = Puppet::Transaction::ResourceHarness.new(@transaction)
     @current_state = Puppet::Resource.new(:file, path)
     @resource.stubs(:retrieve).returns @current_state
-    @status = Puppet::Resource::Status.new(@resource)
-    Puppet::Resource::Status.stubs(:new).returns @status
   end
 
   it "should accept a transaction at initialization" do
@@ -31,28 +29,38 @@ describe Puppet::Transaction::ResourceHarness do
   end
 
   describe "when evaluating a resource" do
-    it "should create and return a resource status instance for the resource" do
-      @harness.evaluate(@resource).should be_instance_of(Puppet::Resource::Status)
+    it "produces a resource state that describes what happened with the resource" do
+      status = @harness.evaluate(@resource)
+
+      status.resource.should == @resource.ref
+      status.should_not be_failed
+      status.events.should be_empty
     end
 
-    it "should fail if no status can be created" do
-      Puppet::Resource::Status.expects(:new).raises ArgumentError
-
-      lambda { @harness.evaluate(@resource) }.should raise_error
-    end
-
-    it "should retrieve the current state of the resource" do
+    it "retrieves the current state of the resource" do
       @resource.expects(:retrieve).returns @current_state
+
       @harness.evaluate(@resource)
     end
 
-    it "should mark the resource as failed and return if the current state cannot be retrieved" do
-      @resource.expects(:retrieve).raises ArgumentError
-      @harness.evaluate(@resource).should be_failed
+    it "produces a failure status for the resource when an error occurs" do
+      the_message = "retrieve failed in testing"
+      @resource.expects(:retrieve).raises(ArgumentError.new(the_message))
+
+      status = @harness.evaluate(@resource)
+
+      status.should be_failed
+      events_to_hash(status.events).collect do |event|
+        { :@status => event[:@status], :@message => event[:@message] }
+      end.should == [{ :@status => "failure", :@message => the_message }]
     end
 
-    it "should store the resource's evaluation time in the resource status" do
-      @harness.evaluate(@resource).evaluation_time.should be_instance_of(Float)
+    it "records the time it took to evaluate the resource" do
+      before = Time.now
+      status = @harness.evaluate(@resource)
+      after = Time.now
+
+      status.evaluation_time.should be <= after - before
     end
   end
 
@@ -470,17 +478,16 @@ describe Puppet::Transaction::ResourceHarness do
     before do
       @catalog = Puppet::Resource::Catalog.new
       @resource.catalog = @catalog
-      @status = Puppet::Resource::Status.new(@resource)
     end
 
     it "should return true if 'ignoreschedules' is set" do
       Puppet[:ignoreschedules] = true
       @resource[:schedule] = "meh"
-      @harness.should be_scheduled(@status, @resource)
+      @harness.should be_scheduled(@resource)
     end
 
     it "should return true if the resource has no schedule set" do
-      @harness.should be_scheduled(@status, @resource)
+      @harness.should be_scheduled(@resource)
     end
 
     it "should return the result of matching the schedule with the cached 'checked' time if a schedule is set" do
@@ -493,7 +500,7 @@ describe Puppet::Transaction::ResourceHarness do
 
       sched.expects(:match?).with(t.to_i).returns "feh"
 
-      @harness.scheduled?(@status, @resource).should == "feh"
+      @harness.scheduled?(@resource).should == "feh"
     end
   end
 

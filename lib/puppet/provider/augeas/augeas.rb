@@ -327,6 +327,8 @@ Puppet::Type.type(:augeas).provide(:augeas) do
 
   def print_errors(errors)
     errors.each do |errnode|
+      error = @aug.get(errnode)
+      debug("#{errnode} = #{error}") unless error.nil?
       @aug.match("#{errnode}/*").each do |subnode|
         subvalue = @aug.get(subnode)
         debug("#{subnode} = #{subvalue}")
@@ -334,7 +336,7 @@ Puppet::Type.type(:augeas).provide(:augeas) do
     end
   end
 
-  # Determines if augeas acutally needs to run.
+  # Determines if augeas actually needs to run.
   def need_to_run?
     force = resource[:force]
     return_value = true

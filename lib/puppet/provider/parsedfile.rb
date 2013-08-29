@@ -160,15 +160,6 @@ class Puppet::Provider::ParsedFile < Puppet::Provider
     [resource_type.validproperties, resource_type.parameters].flatten.each do |attr|
       attr = attr.intern
       define_method(attr) do
-#                if @property_hash.empty?
-#                    # Note that this swaps the provider out from under us.
-#                    prefetch
-#                    if @resource.provider == self
-#                        return @property_hash[attr]
-#                    else
-#                        return @resource.provider.send(attr)
-#                    end
-#                end
         # If it's not a valid field for this record type (which can happen
         # when different platforms support different fields), then just
         # return the should value, so the resource shuts up.
@@ -416,8 +407,6 @@ class Puppet::Provider::ParsedFile < Puppet::Provider
     end
 
     self.class.flush(@property_hash)
-
-    #@property_hash = {}
   end
 
   def initialize(record)
@@ -425,7 +414,7 @@ class Puppet::Provider::ParsedFile < Puppet::Provider
 
     # The 'record' could be a resource or a record, depending on how the provider
     # is initialized.  If we got an empty property hash (probably because the resource
-    # is just being initialized), then we want to set up some defualts.
+    # is just being initialized), then we want to set up some defaults.
     @property_hash = self.class.record?(resource[:name]) || {:record_type => self.class.name, :ensure => :absent} if @property_hash.empty?
   end
 

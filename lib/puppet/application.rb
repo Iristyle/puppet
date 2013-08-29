@@ -87,7 +87,7 @@ module Puppet
 #
 # === Setup
 # Applications can use the setup block to perform any initialization.
-# The defaul +setup+ behaviour is to: read Puppet configuration and manage log level and destination
+# The default +setup+ behaviour is to: read Puppet configuration and manage log level and destination
 #
 # === What and how to run
 # If the +dispatch+ block is defined it is called. This block should return the name of the registered command
@@ -97,7 +97,7 @@ module Puppet
 # === Execution state
 # The class attributes/methods of Puppet::Application serve as a global place to set and query the execution
 # status of the application: stopping, restarting, etc.  The setting of the application status does not directly
-# aftect its running status; it's assumed that the various components within the application will consult these
+# affect its running status; it's assumed that the various components within the application will consult these
 # settings appropriately and affect their own processing accordingly.  Control operations (signal handlers and
 # the like) should set the status appropriately to indicate to the overall system that it's the process of
 # stopping or restarting (or just running as usual).
@@ -377,13 +377,14 @@ class Application
   end
 
   def setup_logs
-    if options[:debug] or options[:verbose]
+    if options[:debug] || options[:verbose]
       Puppet::Util::Log.newdestination(:console)
-      if options[:debug]
-        Puppet::Util::Log.level = :debug
-      else
-        Puppet::Util::Log.level = :info
-      end
+    end
+
+    if options[:debug]
+      Puppet::Util::Log.level = :debug
+    elsif options[:verbose]
+      Puppet::Util::Log.level = :info
     end
 
     Puppet::Util::Log.setup_default unless options[:setdest]
@@ -402,7 +403,7 @@ class Application
     # Create an option parser
     option_parser = OptionParser.new(self.class.banner)
 
-    # He're we're building up all of the options that the application may need to handle.  The main
+    # Here we're building up all of the options that the application may need to handle.  The main
     # puppet settings defined in "defaults.rb" have already been parsed once (in command_line.rb) by
     # the time we get here; however, our app may wish to handle some of them specially, so we need to
     # make the parser aware of them again.  We might be able to make this a bit more efficient by

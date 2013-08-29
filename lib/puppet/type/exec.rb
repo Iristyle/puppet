@@ -79,11 +79,6 @@ module Puppet
 
       # Actually execute the command.
       def sync
-        olddir = nil
-
-        # We need a dir to change to, even if it's just the cwd
-        dir = self.resource[:cwd] || Dir.pwd
-
         event = :executed_command
         tries = self.resource[:tries]
         try_sleep = self.resource[:try_sleep]
@@ -161,7 +156,10 @@ module Puppet
         use this then any error output is not currently captured.  This
         is because of a bug within Ruby.  If you are using Puppet to
         create this user, the exec will automatically require the user,
-        as long as it is specified by name."
+        as long as it is specified by name.
+
+        Please note that the $HOME environment variable is not automatically set
+        when using this attribute."
 
       # Most validation is handled by the SUIDManager class.
       validate do |user|
@@ -232,7 +230,7 @@ module Puppet
         value = value.shift if value.is_a?(Array)
         begin
           value = Float(value)
-        rescue ArgumentError => e
+        rescue ArgumentError
           raise ArgumentError, "The timeout must be a number."
         end
         [value, 0.0].max
