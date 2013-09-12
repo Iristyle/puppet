@@ -21,6 +21,13 @@
   %global confdir      ext/redhat
 %endif
 
+# Don't build the server package for el4 or aix
+%if 0%{?rhel} >= 5
+  %global build_server  1
+%else
+  %global build_server  0
+%endif
+
 %if 0%{?p_vendor:1}
     %global name_prefix      %{p_vendor}-
 
@@ -125,6 +132,7 @@ along with obviously discrete elements like packages, services, and files.
 %endif
 %endif
 
+%if 0%{?build_server}
 %package server
 Group:          System Environment/Base
 Summary:        Server for the puppet system management tool
@@ -145,6 +153,8 @@ Requires:       initscripts
 %description server
 Provides the central puppet server daemon which provides manifests to clients.
 The server can also function as a certificate authority and file server.
+
+%endif
 
 %prep
 %setup -q -n %{name}-%{realversion}
@@ -243,6 +253,18 @@ for file in `find %{buildroot}%{_datadir}/%{_name}/ext -type f`; do
     sed -i -e '1s,^#!.*ruby$,#!/opt/puppet/bin/ruby,' $file
 done
 
+%if ! 0%{?build_server}
+# Clean up the puppet-server files on aix and el4 because we aren't building
+# the server subpackage
+rm -rf $RPM_BUILD_ROOT/%{_sysconfdir}/%{_name}/fileserver.conf \
+       $RPM_BUILD_ROOT/%{_sysconfdir}/%{_name}/manifests \
+       $RPM_BUILD_ROOT/%{_sysconfdir}/%{_name}/modules \
+       $RPM_BUILD_ROOT/%{_sysconfdir}/%{_name}/files \
+       $RPM_BUILD_ROOT/%{_localstatedir}/opt/lib/%{name}master/config.ru \
+       $RPM_BUILD_ROOT/%{_sysconfdir}/httpd/conf.d/puppetmaster.conf \
+       $RPM_BUILD_ROOT/%{_mandir}/man8/puppet-master.8.gz
+%endif
+
 %files
 %defattr(-, root, root, 0755)
 %doc LICENSE README.md examples
@@ -307,6 +329,7 @@ done
 %{_localstatedir}/opt/lib/%{name}
 %endif
 
+%if 0%{?build_server}
 %files server
 %defattr(-, root, %{puppetuser}, 0755)
 %config(noreplace) %{_sysconfdir}/%{_name}/fileserver.conf
@@ -316,6 +339,7 @@ done
 %config(noreplace,missingok) %{_localstatedir}/opt/lib/%{name}master/config.ru
 %config(noreplace,missingok) %{_sysconfdir}/httpd/conf.d/puppetmaster.conf
 %{_mandir}/man8/puppet-master.8.gz
+%endif
 
 %pre
 %if 0%{?_aix}
@@ -378,6 +402,9 @@ rm -rf %{buildroot}
 %changelog
 * <%= Time.now.strftime("%a %b %d %Y") %> Puppet Labs Release <info@puppetlabs.com> -  <%= @rpmversion %>-<%= @rpmrelease %>
 - Build for <%= @version %>
+
+* Thu Sep 12 2013 Matthaus Owens <matthaus@puppetlabs.com> - 3.3.0-1.pe
+- Don't build the server package on aix or el4. Remove the files in that package from the build root
 
 * Fri May 17 2013 Moses Mendoza <moses@puppetlabs.com> - 3.2.0-3.pe
 - Remove versioned ruby requires
