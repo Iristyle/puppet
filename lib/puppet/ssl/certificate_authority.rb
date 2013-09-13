@@ -256,6 +256,7 @@ class Puppet::SSL::CertificateAuthority
       raise ArgumentError, "Could not find a serial number for #{name}"
     end
     result = crl.revoke(serial, host.key.content)
+    display_license_status
     result
   end
 
@@ -265,6 +266,23 @@ class Puppet::SSL::CertificateAuthority
   # testing.
   def setup
     generate_ca_certificate unless @host.certificate
+  end
+
+  def display_license_status
+    proc = lambda do
+      begin
+        require 'puppet/util/license'
+        Puppet::Util::License.display_license_status
+      rescue
+        Puppet.crit "Something terribly wrong checking license status"
+      end
+    end
+    if Puppet[:run_mode] && Puppet[:run_mode].to_sym == :master
+      t = Thread.fork { proc.call }
+      at_exit { t.join }
+    else
+      proc.call
+    end
   end
 
   # Sign a given certificate request.
@@ -313,6 +331,8 @@ class Puppet::SSL::CertificateAuthority
 
     # And remove the CSR if this wasn't self signed.
     Puppet::SSL::CertificateRequest.indirection.destroy(csr.name) unless self_signing_csr
+
+    display_license_status
 
     cert
   end
