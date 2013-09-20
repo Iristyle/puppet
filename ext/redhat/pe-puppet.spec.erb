@@ -48,6 +48,7 @@
     %{!?_real_initrddir:     %global _real_initrddir     %{_initrddir}}
     %{!?_real_localstatedir: %global _real_localstatedir %{_localstatedir}}
     %{!?_real_sysconfdir:    %global _real_sysconfdir    /etc}
+    %{!?_real_datadir:       %global _real_datadir       %{_datadir}}
 
     # Use the alternate locations for things.
     %global _initrddir       %{_real_initrddir}
@@ -221,8 +222,13 @@ cp -a ext/ %{buildroot}%{_datadir}/%{_name}
 chmod +x %{buildroot}%{_datadir}/%{_name}/ext/puppet-load.rb
 chmod +x %{buildroot}%{_datadir}/%{_name}/ext/regexp_nodes/regexp_nodes.rb
 
-# emacs and vim bits aren't installed and we remove packaging
-# artifacts not applicable to rpm
+# Install VIM syntax files
+vimdir=%{buildroot}%{_real_datadir}/vim/vimfiles
+install -Dp -m0644 ext/vim/ftdetect/puppet.vim $vimdir/ftdetect/pe-puppet.vim
+install -Dp -m0644 ext/vim/syntax/puppet.vim $vimdir/syntax/pe-puppet.vim
+
+# emacs bits aren't installed, we remove packaging
+# artifacts not applicable to rpm, and vim installed elsewhere
 for file in aix \
             solaris \
             suse \
@@ -270,6 +276,8 @@ rm -rf $RPM_BUILD_ROOT/%{_sysconfdir}/%{_name}/fileserver.conf \
 %{_initrddir}/%{name}
 %config(noreplace) %{_real_sysconfdir}/logrotate.d/%{name}
 %endif
+%{_real_datadir}/vim/vimfiles/ftdetect/pe-puppet.vim
+%{_real_datadir}/vim/vimfiles/syntax/pe-puppet.vim
 %{_datadir}/%{_name}
 %{_mandir}/man5/puppet.conf.5.gz
 %{_mandir}/man8/puppet.8.gz
