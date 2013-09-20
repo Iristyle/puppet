@@ -84,6 +84,8 @@ module Puppet::Network::HTTP::Handler
     request_method = http_method(request)
     request_path = path(request)
 
+    response[Puppet::Network::HTTP::HEADER_PUPPET_VERSION] = Puppet.version
+
     configure_profiler(request_headers, request_params)
 
     Puppet::Util::Profiler.profile("Processed request #{request_method} #{request_path}") do
@@ -97,7 +99,7 @@ module Puppet::Network::HTTP::Handler
   rescue SystemExit,NoMemoryError
     raise
   rescue HTTPError => e
-    return do_exception(response, e.message, e.status)
+    return do_http_control_exception(response, e)
   rescue Exception => e
     return do_exception(response, e)
   ensure
@@ -121,11 +123,7 @@ module Puppet::Network::HTTP::Handler
       status = 403 if status == 400
     end
 
-    if exception.is_a?(Exception)
-      Puppet.log_exception(exception)
-    else
-      Puppet.notice(exception.to_s)
-    end
+    Puppet.log_exception(exception)
 
     set_content_type(response, "text/plain")
     set_response(response, exception.to_s, status)
@@ -218,6 +216,13 @@ module Puppet::Network::HTTP::Handler
   end
 
   private
+
+  def do_http_control_exception(response, exception)
+    msg = exception.message
+    Puppet.info(msg)
+    set_content_type(response, "text/plain")
+    set_response(response, msg, exception.status)
+  end
 
   def report_if_deprecated(format)
     if format.name == :yaml || format.name == :b64_zlib_yaml
