@@ -54,3 +54,5 @@ opt/puppet/share/puppet/ext/rack
 opt/puppet/share/puppet/ext/regexp_nodes
 opt/puppet/share/puppet/ext/upload_facts.rb
 opt/puppet/share/puppet/ext/yaml_nodes.rb
+ext/vim/ftdetect/pe-puppet.vim /usr/share/vim/vimfiles/ftdetect/
+ext/vim/syntax/pe-puppet.vim /usr/share/vim/vimfiles/syntax/
