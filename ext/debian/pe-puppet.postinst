@@ -42,5 +42,3 @@ if [ "$1" = "configure" ]; then
       mv /etc/default/pe-puppet-agent /etc/default/pe-puppet
     fi
 fi
-
-#DEBHELPER#
