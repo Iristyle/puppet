@@ -59,7 +59,6 @@ describe Puppet::Util do
 
     it "should remove any new environment variables after the block ends" do
       @new_env[:FOO] = "bar"
-      ENV["FOO"] = nil
       Puppet::Util.withenv @new_env do
         ENV["FOO"].should == "bar"
       end
