@@ -170,7 +170,9 @@ describe Puppet::Settings::FileSetting do
 
     it "should fully qualified returned files if necessary (#795)" do
       @settings.stubs(:value).with(:myfile).returns "myfile"
-      path = File.expand_path('myfile')
+      path = File.join(Dir.getwd, "myfile")
+      # Dir.getwd can return windows paths with backslashes, so we normalize them using expand_path
+      path = File.expand_path(path) if Puppet.features.microsoft_windows?
       @file.to_resource.title.should == path
     end
 
