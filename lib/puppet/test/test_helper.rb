@@ -84,8 +84,11 @@ module Puppet::Test
       Puppet::Node::Environment.clear
       Puppet::Parser::Functions.reset
       Puppet::Application.clear!
+      Puppet::Util::Profiler.clear
 
       Puppet.clear_deprecation_warnings
+
+      Puppet::DataBinding::Hiera.instance_variable_set("@hiera", nil)
     end
 
     # Call this method once per test, after execution of each individual test.
