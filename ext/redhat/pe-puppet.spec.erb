@@ -263,10 +263,14 @@ rm -rf $RPM_BUILD_ROOT/%{_sysconfdir}/%{_name}/fileserver.conf \
        $RPM_BUILD_ROOT/%{_mandir}/man8/puppet-master.8.gz
 %endif
 
+mkdir -p %{buildroot}/usr/local/bin/
+ln -sf %{_prefix}/bin/puppet %{buildroot}/usr/local/bin/puppet
+
 %files
 %defattr(-, root, root, 0755)
 %doc LICENSE README.md examples
 %{_bindir}/puppet
+/usr/local/bin/puppet
 %{_bindir}/extlookup2hiera
 %{ruby_sitelibdir}/*
 %dir %{_sysconfdir}/%{_name}
