@@ -297,13 +297,12 @@ class Nagios::Base
   def to_s
     str = "define #{self.type} {\n"
 
-    @parameters.keys.sort.each { |param|
-      value = @parameters[param]
+    self.each { |param,value|
       str += %{\t%-30s %s\n} % [ param,
         if value.is_a? Array
-          value.join(",").sub(';', '\;')
+          value.join(",")
         else
-          value.sub(';', '\;')
+          value
         end
         ]
     }

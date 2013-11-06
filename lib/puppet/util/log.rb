@@ -1,6 +1,5 @@
 require 'puppet/util/tagging'
 require 'puppet/util/classgen'
-require 'puppet/network/format_support'
 
 # Pass feedback to the user.  Log levels are modeled after syslog's, and it is
 # expected that that will be the most common log destination.  Supports
@@ -9,7 +8,6 @@ class Puppet::Util::Log
   include Puppet::Util
   extend Puppet::Util::ClassGen
   include Puppet::Util::Tagging
-  include Puppet::Network::FormatSupport
 
   @levels = [:debug,:info,:notice,:warning,:err,:alert,:emerg,:crit]
   @loglevel = 2
@@ -167,7 +165,9 @@ class Puppet::Util::Log
     queuemessage(msg) if @destinations.length == 0
 
     @destinations.each do |name, dest|
-      dest.handle(msg)
+      threadlock(dest) do
+        dest.handle(msg)
+      end
     end
   end
 
@@ -274,11 +274,7 @@ class Puppet::Util::Log
     @line = data['line'] if data['line']
   end
 
-  def to_hash
-    self.to_data_hash
-  end
-
-  def to_data_hash
+  def to_pson
     {
       'level' => @level,
       'message' => @message,
@@ -287,11 +283,7 @@ class Puppet::Util::Log
       'time' => @time.iso8601(9),
       'file' => @file,
       'line' => @line,
-    }
-  end
-
-  def to_pson(*args)
-    to_data_hash.to_pson(*args)
+    }.to_pson
   end
 
   def message=(msg)

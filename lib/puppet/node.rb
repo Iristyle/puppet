@@ -16,7 +16,7 @@ class Puppet::Node
   indirects :node, :terminus_setting => :node_terminus, :doc => "Where to find node information.
     A node is composed of its name, its facts, and its environment."
 
-  attr_accessor :name, :classes, :source, :ipaddress, :parameters, :trusted_data
+  attr_accessor :name, :classes, :source, :ipaddress, :parameters
   attr_reader :time, :facts
 
   ::PSON.register_document_type('Node',self)
@@ -31,25 +31,17 @@ class Puppet::Node
     node
   end
 
-  def to_data_hash
-    result = {
-      'name' => name,
-      'environment' => environment.name,
-    }
-    result['classes'] = classes unless classes.empty?
-    result['parameters'] = parameters unless parameters.empty?
-    result
-  end
-
-  def to_pson_data_hash(*args)
-    {
-      'document_type' => "Node",
-      'data' =>  to_data_hash,
-    }
-  end
-
   def to_pson(*args)
-    to_pson_data_hash.to_pson(*args)
+    result = {
+      'document_type' => "Node",
+      'data' => {}
+    }
+    result['data']['name'] = name
+    result['data']['classes'] = classes unless classes.empty?
+    result['data']['parameters'] = parameters unless parameters.empty?
+    result['data']['environment'] = environment.name
+
+    result.to_pson(*args)
   end
 
   def environment
@@ -92,7 +84,6 @@ class Puppet::Node
   # Merge the node facts with parameters from the node source.
   def fact_merge
     if @facts = Puppet::Node::Facts.indirection.find(name, :environment => environment)
-      @facts.sanitize
       merge(@facts.values)
     end
   rescue => detail

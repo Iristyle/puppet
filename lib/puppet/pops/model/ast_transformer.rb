@@ -439,10 +439,7 @@ class Puppet::Pops::Model::AstTransformer
     args = {
       :code => transform(o.body)
     }
-    args[:parent] = hostname(o.parent) unless is_nop?(o.parent)
-    if(args[:parent].is_a?(Array))
-      raise "Illegal expression - unacceptable as a node parent"
-    end
+    args[:parent] = transform(o.parent) unless is_nop?(o.parent)
     Puppet::Parser::AST::Node.new(hostname(o.host_matches), merge_location(args, o))
   end
 

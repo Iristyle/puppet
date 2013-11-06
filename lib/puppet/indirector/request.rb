@@ -37,12 +37,16 @@ class Puppet::Indirector::Request
     request
   end
 
-  def to_data_hash
+  def to_pson(*args)
     result = {
-      'type' => indirection_name,
-      'method' => method,
-      'key' => key
+      'document_type' => 'IndirectorRequest',
+      'data' => {
+        'type' => indirection_name,
+        'method' => method,
+        'key' => key
+      }
     }
+    data = result['data']
     attributes = {}
     OPTION_ATTRIBUTES.each do |key|
       next unless value = send(key)
@@ -53,20 +57,10 @@ class Puppet::Indirector::Request
       attributes[opt] = value
     end
 
-    result['attributes'] = attributes unless attributes.empty?
-    result['instance'] = instance if instance
-    result
-  end
+    data['attributes'] = attributes unless attributes.empty?
+    data['instance'] = instance if instance
 
-  def to_pson_data_hash
-    {
-      'document_type' => 'IndirectorRequest',
-      'data' => to_data_hash,
-    }
-  end
-
-  def to_pson(*args)
-    to_pson_data_hash.to_pson(*args)
+    result.to_pson(*args)
   end
 
   # Is this an authenticated request?

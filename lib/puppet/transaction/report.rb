@@ -216,7 +216,7 @@ class Puppet::Transaction::Report
     end
   end
 
-  def to_data_hash
+  def to_pson
     {
       'host' => @host,
       'time' => @time.iso8601(9),
@@ -231,11 +231,7 @@ class Puppet::Transaction::Report
       'logs' => @logs,
       'metrics' => @metrics,
       'resource_statuses' => @resource_statuses,
-    }
-  end
-
-  def to_pson
-    to_data_hash.to_pson
+    }.to_pson
   end
 
   # @return [String] the host name

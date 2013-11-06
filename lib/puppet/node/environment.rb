@@ -10,18 +10,20 @@ end
 # Puppet::Node::Environment acts as a container for all configuration
 # that is expected to vary between environments.
 #
-# ## Global variables
+# ## Thread local variables
 #
-# The Puppet::Node::Environment uses a number of global variables.
+# The Puppet::Node::Environment uses a number of `Thread.current` variables.
+# Since all web servers that Puppet runs on are single threaded these
+# variables are effectively global.
 #
-# ### `$environment`
+# ### `Thread.current[:environment]`
 #
-# The 'environment' global variable represents the current environment that's
+# The 'environment' thread variable represents the current environment that's
 # being used in the compiler.
 #
-# ### `$known_resource_types`
+# ### `Thread.current[:known_resource_types]`
 #
-# The 'known_resource_types' global variable represents a singleton instance
+# The 'known_resource_types' thread variable represents a singleton instance
 # of the Puppet::Resource::TypeCollection class. The variable is discarded
 # and regenerated if it is accessed by an environment that doesn't match the
 # environment of the 'known_resource_types'
@@ -127,7 +129,7 @@ class Puppet::Node::Environment
   # @return [Puppet::Node::Environment] the currently set environment if one
   #   has been explicitly set, else it will return the '*root*' environment
   def self.current
-    $environment || root
+    Thread.current[:environment] || root
   end
 
   # Set the environment for the current thread
@@ -143,7 +145,7 @@ class Puppet::Node::Environment
   #
   # @param env [Puppet::Node::Environment]
   def self.current=(env)
-    $environment = new(env)
+    Thread.current[:environment] = new(env)
   end
 
 
@@ -162,7 +164,7 @@ class Puppet::Node::Environment
   # @api private
   def self.clear
     @seen.clear
-    $environment = nil
+    Thread.current[:environment] = nil
   end
 
   # @!attribute [r] name
@@ -190,16 +192,17 @@ class Puppet::Node::Environment
   # @param name [Symbol] The environment name
   def initialize(name)
     @name = name
+    extend MonitorMixin
   end
 
   # The current global TypeCollection
   #
   # @note The environment is loosely coupled with the {Puppet::Resource::TypeCollection}
   #   class. While there is a 1:1 relationship between an environment and a
-  #   TypeCollection instance, there is only one TypeCollection instance
-  #   available at any given time. It is stored in `$known_resource_types`.
-  #   `$known_resource_types` is accessed as an instance method, but is global
-  #   to all environment variables.
+  #   TypeCollection instance, there is only one TypeCollection instance available
+  #   at any given time. It is stored in the Thread.current collection as
+  #   'known_resource_types'. 'known_resource_types' is accessed as an instance
+  #   method, but is global to all environment variables.
   #
   # @api public
   # @return [Puppet::Resource::TypeCollection] The current global TypeCollection
@@ -209,15 +212,14 @@ class Puppet::Node::Environment
     # always just return our thread's known-resource types.  Only at the start
     # of a compilation (after our thread var has been set to nil) or when the
     # environment has changed do we delve deeper.
-    $known_resource_types = nil if $known_resource_types && $known_resource_types.environment != self
-    $known_resource_types ||=
+    Thread.current[:known_resource_types] = nil if (krt = Thread.current[:known_resource_types]) && krt.environment != self
+    Thread.current[:known_resource_types] ||= synchronize {
       if @known_resource_types.nil? or @known_resource_types.require_reparse?
         @known_resource_types = Puppet::Resource::TypeCollection.new(self)
         @known_resource_types.import_ast(perform_initial_import, '')
-        @known_resource_types
-      else
-        @known_resource_types
       end
+      @known_resource_types
+    }
   end
 
   # Yields each modules' plugin directory if the plugin directory (modulename/lib)

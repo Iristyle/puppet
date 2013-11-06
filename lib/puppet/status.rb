@@ -10,10 +10,6 @@ class Puppet::Status
     @status = status || {"is_alive" => true}
   end
 
-  def to_data_hash
-    @status
-  end
-
   def to_pson(*args)
     @status.to_pson
   end

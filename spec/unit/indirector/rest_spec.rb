@@ -109,10 +109,6 @@ describe Puppet::Indirector::REST do
         string.split(',').collect { |s| convert_from(format, s) }
       end
 
-      def to_data_hash
-        { 'name' => @name, 'data' => @data }
-      end
-
       def ==(other)
         other.is_a? Puppet::TestModel and other.name == name and other.data == data
       end

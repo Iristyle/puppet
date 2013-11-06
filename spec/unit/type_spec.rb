@@ -1,10 +1,9 @@
 #! /usr/bin/env ruby
 require 'spec_helper'
-require 'puppet_spec/compiler'
+
 
 describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
   include PuppetSpec::Files
-  include PuppetSpec::Compiler
 
   it "should be Comparable" do
     a = Puppet::Type.type(:notify).new(:name => "a")
@@ -64,28 +63,6 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
     end
   end
 
-  it "can retrieve all set parameters" do
-    resource = Puppet::Type.type(:mount).new(:name => "foo", :fstype => "bar", :pass => 1, :ensure => :present, :tag => 'foo')
-    params = resource.parameters_with_value
-    [:name, :provider, :ensure, :fstype, :pass, :dump, :target, :loglevel, :tag].each do |name|
-      params.should be_include(resource.parameter(name))
-    end
-  end
-
-  it "can not return any `nil` values when retrieving all set parameters" do
-    resource = Puppet::Type.type(:mount).new(:name => "foo", :fstype => "bar", :pass => 1, :ensure => :present, :tag => 'foo')
-    params = resource.parameters_with_value
-    params.should_not be_include(nil)
-  end
-
-  it "can return an iterator for all set parameters" do
-    resource = Puppet::Type.type(:notify).new(:name=>'foo',:message=>'bar',:tag=>'baz',:require=> "File['foo']")
-    params = [:name, :message, :withpath, :loglevel, :tag, :require]
-    resource.eachparameter { |param|
-      params.should be_include(param.to_s.to_sym)
-    }
-  end
-
   it "should have a method for setting default values for resources" do
     Puppet::Type.type(:mount).new(:name => "foo").must respond_to(:set_default)
   end
@@ -130,26 +107,6 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
 
   it "should consider its version to be zero if it has no catalog" do
     Puppet::Type.type(:mount).new(:name => "foo").version.should == 0
-  end
-
-  it "reports the correct path even after path is used during setup of the type" do
-    Puppet::Type.newtype(:testing) do
-      newparam(:name) do
-        isnamevar
-        validate do |value|
-          path # forces the computation of the path
-        end
-      end
-    end
-
-    ral = compile_to_ral(<<-MANIFEST)
-      class something {
-        testing { something: }
-      }
-      include something
-    MANIFEST
-
-    ral.resource("Testing[something]").path.should == "/Stage[main]/Something/Testing[something]"
   end
 
   context "resource attributes" do
@@ -510,28 +467,6 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
           )
         end.to raise_error(Puppet::ResourceError, /Validation.*example.pp:42/)
       end
-    end
-  end
-
-  describe "when #finish is called on a type" do
-    let(:post_hook_type) do
-      Puppet::Type.newtype(:finish_test) do
-        newparam(:name) { isnamevar }
-
-        newparam(:post) do
-          def post_compile
-            raise "post_compile hook ran"
-          end
-        end
-      end
-    end
-
-    let(:post_hook_resource) do
-      post_hook_type.new(:name => 'foo',:post => 'fake_value')
-    end
-
-    it "should call #post_compile on parameters that implement it" do
-      expect { post_hook_resource.finish }.to raise_error(RuntimeError, "post_compile hook ran")
     end
   end
 

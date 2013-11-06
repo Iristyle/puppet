@@ -10,6 +10,7 @@ require 'puppet/ssl/configuration'
 class Puppet::Network::HTTP::WEBrick
   def initialize
     @listening = false
+    @mutex = Mutex.new
   end
 
   def listen(address, port)
@@ -24,28 +25,34 @@ class Puppet::Network::HTTP::WEBrick
 
     @server.mount('/', Puppet::Network::HTTP::WEBrickREST, :this_value_is_apparently_necessary_but_unused)
 
-    raise "WEBrick server is already listening" if @listening
-    @listening = true
-    @thread = Thread.new do
-      @server.start do |sock|
-        raise "Client disconnected before connection could be established" unless IO.select([sock],nil,nil,6.2)
-        sock.accept
-        @server.run(sock)
-      end
+    @mutex.synchronize do
+      raise "WEBrick server is already listening" if @listening
+      @listening = true
+      @thread = Thread.new {
+        @server.start { |sock|
+          raise "Client disconnected before connection could be established" unless IO.select([sock],nil,nil,6.2)
+          sock.accept
+          @server.run(sock)
+        }
+      }
+      sleep 0.1 until @server.status == :Running
     end
-    sleep 0.1 until @server.status == :Running
   end
 
   def unlisten
-    raise "WEBrick server is not listening" unless @listening
-    @server.shutdown
-    wait_for_shutdown
-    @server = nil
-    @listening = false
+    @mutex.synchronize do
+      raise "WEBrick server is not listening" unless @listening
+      @server.shutdown
+      wait_for_shutdown
+      @server = nil
+      @listening = false
+    end
   end
 
   def listening?
-    @listening
+    @mutex.synchronize do
+      @listening
+    end
   end
 
   def wait_for_shutdown

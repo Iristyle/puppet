@@ -32,36 +32,33 @@ describe Puppet::Resource::Catalog::Compiler do
   end
 
   it "should filter out virtual resources when finding a catalog" do
-    Puppet[:node_terminus] = :memory
-    Puppet::Node.indirection.save(Puppet::Node.new("mynode"))
+    @one.virtual = true
+    request = stub 'request', :name => "mynode"
     Puppet::Resource::Catalog.indirection.terminus.stubs(:extract_facts_from_request)
+    Puppet::Resource::Catalog.indirection.terminus.stubs(:node_from_request)
     Puppet::Resource::Catalog.indirection.terminus.stubs(:compile).returns(@catalog)
 
-    @one.virtual = true
-
-    Puppet::Resource::Catalog.indirection.find("mynode").resource_refs.should == [ @two.ref ]
+    Puppet::Resource::Catalog.indirection.find(request).resource_refs.should == [ @two.ref ]
   end
 
   it "should not filter out exported resources when finding a catalog" do
-    Puppet[:node_terminus] = :memory
-    Puppet::Node.indirection.save(Puppet::Node.new("mynode"))
+    @one.exported = true
+    request = stub 'request', :name => "mynode"
     Puppet::Resource::Catalog.indirection.terminus.stubs(:extract_facts_from_request)
+    Puppet::Resource::Catalog.indirection.terminus.stubs(:node_from_request)
     Puppet::Resource::Catalog.indirection.terminus.stubs(:compile).returns(@catalog)
 
-    @one.exported = true
-
-    Puppet::Resource::Catalog.indirection.find("mynode").resource_refs.sort.should == [ @one.ref, @two.ref ]
+    Puppet::Resource::Catalog.indirection.find(request).resource_refs.sort.should == [ @one.ref, @two.ref ]
   end
 
   it "should filter out virtual exported resources when finding a catalog" do
-    Puppet[:node_terminus] = :memory
-    Puppet::Node.indirection.save(Puppet::Node.new("mynode"))
-    Puppet::Resource::Catalog.indirection.terminus.stubs(:extract_facts_from_request)
-    Puppet::Resource::Catalog.indirection.terminus.stubs(:compile).returns(@catalog)
-
     @one.exported = true
     @one.virtual = true
+    request = stub 'request', :name => "mynode"
+    Puppet::Resource::Catalog.indirection.terminus.stubs(:extract_facts_from_request)
+    Puppet::Resource::Catalog.indirection.terminus.stubs(:node_from_request)
+    Puppet::Resource::Catalog.indirection.terminus.stubs(:compile).returns(@catalog)
 
-    Puppet::Resource::Catalog.indirection.find("mynode").resource_refs.should == [ @two.ref ]
+    Puppet::Resource::Catalog.indirection.find(request).resource_refs.should == [ @two.ref ]
   end
 end

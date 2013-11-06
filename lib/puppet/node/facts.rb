@@ -84,33 +84,16 @@ class Puppet::Node::Facts
     new_facts
   end
 
-  def to_data_hash
+  def to_pson(*args)
     result = {
       'name' => name,
       'values' => strip_internal,
     }
 
-    if timestamp
-      if timestamp.is_a? Time
-        result['timestamp'] = timestamp.iso8601(9)
-      else
-        result['timestamp'] = timestamp
-      end
-    end
+    result['timestamp'] = timestamp if timestamp
+    result['expiration'] = expiration if expiration
 
-    if expiration
-      if expiration.is_a? Time
-        result['expiration'] = expiration.iso8601(9)
-      else
-        result['expiration'] = expiration
-      end
-    end
-
-    result
-  end
-
-  def to_pson(*args)
-    to_data_hash.to_pson(*args)
+    result.to_pson(*args)
   end
 
   # Add internal data to the facts for storage.
@@ -126,14 +109,14 @@ class Puppet::Node::Facts
     self.values['_timestamp']
   end
 
+  private
+
   # Strip out that internal data.
   def strip_internal
     newvals = values.dup
     newvals.find_all { |name, value| name.to_s =~ /^_/ }.each { |name, value| newvals.delete(name) }
     newvals
   end
-
-  private
 
   def sanitize_fact(fact)
     if fact.is_a? Hash then

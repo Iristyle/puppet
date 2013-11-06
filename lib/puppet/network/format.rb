@@ -1,9 +1,10 @@
-require 'puppet/confiner'
+require 'puppet/provider'
+require 'puppet/provider/confiner'
 
 # A simple class for modeling encoding formats for moving
 # instances around the network.
 class Puppet::Network::Format
-  include Puppet::Confiner
+  include Puppet::Provider::Confiner
 
   attr_reader :name, :mime
   attr_accessor :intern_method, :render_method, :intern_multiple_method, :render_multiple_method, :weight, :required_methods, :extension

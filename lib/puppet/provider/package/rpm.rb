@@ -6,10 +6,9 @@ Puppet::Type.type(:package).provide :rpm, :source => :rpm, :parent => Puppet::Pr
     binary."
 
   has_feature :versionable
-  has_feature :install_options
 
   # Note: self:: is required here to keep these constants in the context of what will
-  # eventually become this Puppet::Type::Package::ProviderRpm class.
+  # eventually become this Puppet:Type::Package::ProviderRpm class.
   self::RPM_DESCRIPTION_DELIMITER = ':DESC:'
   # The query format by which we identify installed packages
   self::NEVRA_FORMAT = %Q{%{NAME} %|EPOCH?{%{EPOCH}}:{0}| %{VERSION} %{RELEASE} %{ARCH} #{self::RPM_DESCRIPTION_DELIMITER} %{SUMMARY}\\n}
@@ -108,10 +107,9 @@ Puppet::Type.type(:package).provide :rpm, :source => :rpm, :parent => Puppet::Pr
       return
     end
 
-    flag = ["-i"]
+    flag = "-i"
     flag = ["-U", "--oldpackage"] if @property_hash[:ensure] and @property_hash[:ensure] != :absent
 
-    flag = flag + install_options
     rpm flag, source
   end
 
@@ -141,35 +139,7 @@ Puppet::Type.type(:package).provide :rpm, :source => :rpm, :parent => Puppet::Pr
     self.install
   end
 
-  def install_options
-    join_options(resource[:install_options])
-  end
-
   private
-
-  # Turns a array of options into flags to be passed to rpm install(8) and
-  # The options can be passed as a string or hash. Note that passing a hash 
-  # should only be used in case -Dfoo=bar must be passed,
-  # which can be accomplished with:
-  #     install_options => [ { '-Dfoo' => 'bar' } ]
-  # Regular flags like '-L' must be passed as a string.
-  # @param options [Array]
-  # @return Concatenated list of options
-  # @api private
-  def join_options(options)
-    return [] unless options
-
-    options.collect do |val|
-      case val
-      when Hash
-        val.keys.sort.collect do |k|
-          "#{k}=#{val[k]}"
-        end.join(' ')
-      else
-        val
-      end
-    end
-  end
 
   # @param line [String] one line of rpm package query information
   # @return [Hash] of NEVRA_FIELDS strings parsed from package info

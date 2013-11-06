@@ -357,15 +357,8 @@ describe Puppet::Module do
     end
   end
 
-  [:plugins, :pluginfacts, :templates, :files, :manifests].each do |filetype|
-    case filetype
-      when :plugins
-        dirname = "lib"
-      when :pluginfacts
-        dirname = "facts.d"
-      else
-        dirname = filetype.to_s
-    end
+  [:plugins, :templates, :files, :manifests].each do |filetype|
+    dirname = filetype == :plugins ? "lib" : filetype.to_s
     it "should be able to return individual #{filetype}" do
       module_file = File.join(path, dirname, "my/file")
       FileTest.expects(:exist?).with(module_file).returns true

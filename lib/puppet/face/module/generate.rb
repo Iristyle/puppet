@@ -17,14 +17,16 @@ Puppet::Face.define(:module, '1.0.0') do
       $ puppet module generate puppetlabs-ssh
       notice: Generating module at /Users/kelseyhightower/puppetlabs-ssh
       puppetlabs-ssh
-      puppetlabs-ssh/Modulefile
-      puppetlabs-ssh/README
-      puppetlabs-ssh/manifests
-      puppetlabs-ssh/manifests/init.pp
-      puppetlabs-ssh/spec
-      puppetlabs-ssh/spec/spec_helper.rb
       puppetlabs-ssh/tests
       puppetlabs-ssh/tests/init.pp
+      puppetlabs-ssh/spec
+      puppetlabs-ssh/spec/spec_helper.rb
+      puppetlabs-ssh/spec/spec.opts
+      puppetlabs-ssh/README
+      puppetlabs-ssh/Modulefile
+      puppetlabs-ssh/metadata.json
+      puppetlabs-ssh/manifests
+      puppetlabs-ssh/manifests/init.pp
     EOT
 
     arguments "<name>"

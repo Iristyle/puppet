@@ -365,23 +365,19 @@ class Puppet::Resource::Catalog < Puppet::Graph::SimpleGraph
     result.add_edge(edge)
   end
 
-  def to_data_hash
-    {
-      'tags'      => tags,
-      'name'      => name,
-      'version'   => version,
-      'environment' => environment.to_s,
-      'resources' => @resources.collect { |v| @resource_table[v].to_pson_data_hash },
-      'edges'     => edges.   collect { |e| e.to_pson_data_hash },
-      'classes'   => classes
-    }
-  end
-
   PSON.register_document_type('Catalog',self)
   def to_pson_data_hash
     {
       'document_type' => 'Catalog',
-      'data'       => to_data_hash,
+      'data'       => {
+        'tags'      => tags,
+        'name'      => name,
+        'version'   => version,
+        'environment' => environment.to_s,
+        'resources' => @resources.collect { |v| @resource_table[v].to_pson_data_hash },
+        'edges'     => edges.   collect { |e| e.to_pson_data_hash },
+        'classes'   => classes
+        },
       'metadata' => {
         'api_version' => 1
         }
@@ -469,7 +465,7 @@ class Puppet::Resource::Catalog < Puppet::Graph::SimpleGraph
 
   # Verify that the given resource isn't declared elsewhere.
   def fail_on_duplicate_type_and_title(resource)
-    # Short-circuit the common case,
+    # Short-curcuit the common case,
     return unless existing_resource = @resource_table[title_key_for_ref(resource.ref)]
 
     # If we've gotten this far, it's a real conflict
@@ -496,10 +492,22 @@ class Puppet::Resource::Catalog < Puppet::Graph::SimpleGraph
       next if virtual_not_exported?(resource)
       next if block_given? and yield resource
 
-      if convert == :to_resource
-        newres = resource.copy_as_resource
+      #This is hackity hack for 1094
+      #Aliases aren't working in the ral catalog because the current instance of the resource
+      #has a reference to the catalog being converted. . . So, give it a reference to the new one
+      #problem solved. . .
+      if resource.class == Puppet::Resource
+        resource = resource.dup
+        resource.catalog = result
+      elsif resource.is_a?(Puppet::Parser::Resource)
+        resource = resource.to_resource
+        resource.catalog = result
+      end
+
+      if resource.is_a?(Puppet::Resource) and convert.to_s == "to_resource"
+        newres = resource
       else
-        newres = resource.copy_as_resource.to_ral
+        newres = resource.send(convert)
       end
 
       # We can't guarantee that resources don't munge their names
@@ -534,9 +542,6 @@ class Puppet::Resource::Catalog < Puppet::Graph::SimpleGraph
 
     result.add_class(*self.classes)
     result.tag(*self.tags)
-
-    # Don't introduce the resources to the catalog until the catalog is complete
-    result.resources.each { |resource| resource.catalog = result }
 
     result
   end
