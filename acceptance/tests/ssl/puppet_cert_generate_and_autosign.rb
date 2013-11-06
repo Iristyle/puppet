@@ -1,7 +1,6 @@
 test_name "Puppet cert generate behavior (#6112)" do
 
-  # This acceptance test documents the behavior of `puppet cert generate` calls
-  # for three cases:
+  # This acceptance test documents the behavior of `puppet cert generate` calls for three cases:
   #
   # 1) On a host which has ssl/ca infrastructure.  Typically this would be the
   # puppet master which is also the CA, and the expectation is that this is the
@@ -43,21 +42,16 @@ test_name "Puppet cert generate behavior (#6112)" do
   # This case succeeds, but future calls such as `puppet agent -t` fail.
   # Haven't fully traced what happens here.
 
-  test_cn = "cert.test"
-
   teardown do
     step "And try to leave with a good ssl configuration"
-    reset_agent_ssl
-    clean_cert(master, test_cn, false)
+    reset_master_and_agent_ssl
   end
 
-  def clean_cert(host, cn, check = true)
-    on(host, puppet('cert', 'clean', cn), :acceptable_exit_codes => check ? [0] : [0, 24])
-    if check
-      assert_match(/remov.*Certificate.*#{cn}/i, stdout, "Should see a log message that certificate request was removed.")
-      on(host, puppet('cert', 'list', '--all'))
-      assert_no_match(/#{cn}/, stdout, "Should not see certificate in list anymore.")
-    end
+  def clean_cert(host, cn)
+    on(host, puppet('cert', 'clean', cn))
+    assert_match(/remov.*Certificate.*#{cn}/i, stdout, "Should see a log message that certificate request was removed.")
+    on(host, puppet('cert', 'list', '--all'))
+    assert_no_match(/#{cn}/, stdout, "Should not see certificate in list anymore.")
   end
 
   def generate_and_clean_cert(host, cn, autosign)
@@ -67,9 +61,8 @@ test_name "Puppet cert generate behavior (#6112)" do
   end
 
   def fail_to_generate_cert_on_agent_that_is_not_ca(host, cn, autosign)
-    return if master.is_pe?
     on(host, puppet('cert', 'generate', cn, '--autosign', autosign), :acceptable_exit_codes => [23])
-    assert_match(/Error: The certificate retrieved from the master does not match the agent's private key./, stderr, "Should not be able to generate a certificate on an agent that is not also the CA, with autosign #{autosign}.")
+    assert_match(/Error: The certificate retrieved from the master does not match the agent's private key./, stderr, "Should not be able to generate a certificate on an agent that is not also the CA, with autosign false.")
   end
 
   def generate_and_clean_cert_with_dns_alt_names(host, cn, autosign)
@@ -85,52 +78,29 @@ test_name "Puppet cert generate behavior (#6112)" do
     host['roles'].include?('master')
   end
 
-  def clear_agent_ssl
-    return if master.is_pe?
-    step "All: Clear agent only ssl settings (do not clear master)"
-    hosts.each do |host|
-      next if host == master
-      ssldir = on(host, puppet('agent --configprint ssldir')).stdout.chomp
-      on( host, host_command("rm -rf '#{ssldir}'") )
-    end
+  def clear_all_hosts_ssl
+    step "All: Clear ssl settings"
+    on( hosts, host_command('rm -rf #{host["puppetpath"]}/ssl') )
   end
 
-  def reset_agent_ssl
-    return if master.is_pe?
-    clear_agent_ssl
-
-    hostname = master.execute('facter hostname')
-    fqdn = master.execute('facter fqdn')
+  def reset_master_and_agent_ssl
+    clear_all_hosts_ssl
 
     step "Master: Ensure the master bootstraps CA"
-    with_puppet_running_on(master,
-                            :master => {
-                              :dns_alt_names => "puppet,#{hostname},#{fqdn}",
-                              :autosign => true,
-                            }
-                          ) do
-
-      agents.each do |agent|
-        next if agent == master
-
-        step "Clear old agent certificate from master" do
-          agent_cn = on(agent, puppet('agent --configprint certname')).stdout.chomp
-          clean_cert(master, agent_cn, false) if agent_cn
-        end
-        step "Agents: Run agent --test once to obtained auto-signed cert" do
-          on agent, puppet('agent', "--test --server #{master}"), :acceptable_exit_codes => [0,2]
-        end
-      end
-
+    with_master_running_on(master, "--certname #{master} --autosign true") do
+      step "Agents: Run agent --test once to obtained auto-signed cert"
+      on agents, puppet('agent', "--test --server #{master}"), :acceptable_exit_codes => [0,2]
     end
   end
+
+  cn = "cert.test"
 
   ################
   # Cases 1 and 2:
 
   step "Case 1 and 2: Tests behavior of `puppet cert generate` on a master node, and on an agent node that has already authenticated to the master.  Tests with combinations of autosign and dns_alt_names."
 
-  reset_agent_ssl
+  reset_master_and_agent_ssl
 
   # User story:
   # A root user on the puppet master has a configuration where autosigning is
@@ -141,9 +111,9 @@ test_name "Puppet cert generate behavior (#6112)" do
 
   hosts.each do |host|
     if host_is_master?(host)
-      generate_and_clean_cert(host, test_cn, false)
+      generate_and_clean_cert(host, cn, false)
     else
-      fail_to_generate_cert_on_agent_that_is_not_ca(host, test_cn, false)
+      fail_to_generate_cert_on_agent_that_is_not_ca(host, cn, false)
     end
   end
 
@@ -159,9 +129,9 @@ test_name "Puppet cert generate behavior (#6112)" do
 
   hosts.each do |host|
     if host_is_master?(host)
-      generate_and_clean_cert(host, test_cn, true)
+      generate_and_clean_cert(host, cn, true)
     else
-      fail_to_generate_cert_on_agent_that_is_not_ca(host, test_cn, true)
+      fail_to_generate_cert_on_agent_that_is_not_ca(host, cn, true)
     end
   end
 
@@ -171,18 +141,18 @@ test_name "Puppet cert generate behavior (#6112)" do
 
   hosts.each do |host|
     if host_is_master?(host)
-      generate_and_clean_cert_with_dns_alt_names(host, test_cn, false)
+      generate_and_clean_cert_with_dns_alt_names(host, cn, false)
     else
-      fail_to_generate_cert_on_agent_that_is_not_ca(host, test_cn, false)
+      fail_to_generate_cert_on_agent_that_is_not_ca(host, cn, false)
     end
   end
 
   step "puppet cert generate with autosign true and dns_alt_names"
   hosts.each do |host|
     if host_is_master?(host)
-      generate_and_clean_cert_with_dns_alt_names(host, test_cn, false)
+      generate_and_clean_cert_with_dns_alt_names(host, cn, false)
     else
-      fail_to_generate_cert_on_agent_that_is_not_ca(host, test_cn, false)
+      fail_to_generate_cert_on_agent_that_is_not_ca(host, cn, false)
     end
   end
 
@@ -193,37 +163,33 @@ test_name "Puppet cert generate behavior (#6112)" do
   # attempting to set the ssl/ca/serial file.  Fails inside
   # Puppet::Settings#readwritelock because we can't overwrite the lock file in
   # Windows.
+  confine :except, :platform => 'windows'
 
-  step "Case 3: A host with no ssl infrastructure makes a `puppet cert generate` call" do
-    if !master.is_pe?
-      confine_block :except, :platform => 'windows' do
+  step "Case 3: A host with no ssl infrastructure makes a `puppet cert generate` call"
 
-        clear_agent_ssl
+  clear_all_hosts_ssl
 
-        step "puppet cert generate"
+  step "puppet cert generate"
 
-        hosts.each do |host|
-          generate_and_clean_cert(host, test_cn, false)
+  hosts.each do |host|
+    generate_and_clean_cert(host, cn, false)
 
-      # Commenting this out until we can figure out whether this behavior is a bug or
-      # not, and what the platform issues are.
-      #
-      # Need to figure out exactly why this fails, where it fails, and document or
-      # fix.  Can reproduce a failure locally in Ubuntu, and the attempt fails
-      # 'as expected' in Jenkins acceptance jobs on Lucid and Fedora, but succeeds
-      # on RHEL and Centos...
-      #
-      # Redmine (#21739) captures this.
-      #
-      #    with_puppet_running_on(master, :master => { :certname => master, :autosign => true }) do
-      #      step "but now unable to authenticate normally as an agent"
-      #
-      #      on(host, puppet('agent', '-t'), :acceptable_exit_codes => [1])
-      #
-      #    end
-        end
-      end
-    end
+# Commenting this out until we can figure out whether this behavior is a bug or
+# not, and what the platform issues are.
+#
+# Need to figure out exactly why this fails, where it fails, and document or
+# fix.  Can reproduce a failure locally in Ubuntu, and the attempt fails
+# 'as expected' in Jenkins acceptance jobs on Lucid and Fedora, but succeeds
+# on RHEL and Centos...
+#
+# Redmine (#21739) captures this.
+#
+#    with_master_running_on(master, "--certname #{master} --autosign true", :preserve_ssl => true) do
+#      step "but now unable to authenticate normally as an agent"
+# 
+#      on(host, puppet('agent', '-t'), :acceptable_exit_codes => [1])
+#
+#    end
   end
 
   ##########

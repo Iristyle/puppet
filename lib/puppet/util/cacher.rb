@@ -1,3 +1,5 @@
+require 'monitor'
+
 module Puppet::Util::Cacher
   # Our module has been extended in a class; we can only add the Instance methods,
   # which become *class* methods in the class.
@@ -31,8 +33,10 @@ module Puppet::Util::Cacher
 
       define_method(name.to_s + "=") do |value|
         # Make sure the cache timestamp is set
-        value_cache[name] = value
-        set_expiration(name)
+        value_cache.synchronize do
+          value_cache[name] = value
+          set_expiration(name)
+        end
       end
     end
 
@@ -51,11 +55,13 @@ module Puppet::Util::Cacher
     private
 
     def cached_value(name)
-      if value_cache[name].nil? or expired_by_ttl?(name)
-        value_cache[name] = send("init_#{name}")
-        set_expiration(name)
+      value_cache.synchronize do
+        if value_cache[name].nil? or expired_by_ttl?(name)
+          value_cache[name] = send("init_#{name}")
+          set_expiration(name)
+        end
+        value_cache[name]
       end
-      value_cache[name]
     end
 
     def expired_by_ttl?(name)
@@ -68,7 +74,7 @@ module Puppet::Util::Cacher
     end
 
     def value_cache
-      @value_cache ||= {}
+      @value_cache ||= {}.extend(MonitorMixin)
     end
   end
 end

@@ -7,7 +7,7 @@ module2libdir = "#{basedir}/2"
 
 apply_manifest_on(master, <<MANIFEST)
 file { "#{basedir}":
-  owner => #{master['group']},
+  owner => puppet,
   recurse => true,
   require => File[mod1, mod2]
 }
@@ -20,28 +20,21 @@ exec { "mod2path": command => "mkdir -p #{module2libdir}/a/lib" }
 file { "mod1":
   path => "#{module1libdir}/a/lib/foo.rb",
   content => "'from the first module'",
-  owner => #{master['group']},
+  owner => puppet,
   require => Exec[mod1path]
 }
 
 file { "mod2":
   path => "#{module2libdir}/a/lib/foo.rb",
   content => "'from the second module'",
-  owner => #{master['group']},
+  owner => puppet,
   require => Exec[mod2path]
 }
 MANIFEST
 
-master_opts = {
-  'master' => {
-    'modulepath' => "#{module1libdir}:#{module2libdir}",
-    'node_terminus' => 'plain',
-  }
-}
-
-with_puppet_running_on master, master_opts, basedir do
+with_master_running_on(master, "--modulepath #{module1libdir}:#{module2libdir}", :preserve_ssl => true) do
   agents.each do |agent|
-    on(agent, puppet('agent', "-t --server #{master}"))
+    run_agent_on(agent)
     on agent, "cat #{agent['puppetvardir']}/lib/foo.rb" do
       assert_match(/from the first module/, stdout, "The synced plugin was not found or the wrong version was synced")
     end

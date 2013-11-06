@@ -1,3 +1,4 @@
+require 'monitor'
 require 'puppet/util/instrumentation'
 
 # This is the central point of all declared probes.
@@ -14,7 +15,7 @@ require 'puppet/util/instrumentation'
 #     end
 #   end
 module Puppet::Util::Instrumentation::Instrumentable
-  INSTRUMENTED_CLASSES = {}
+  INSTRUMENTED_CLASSES = {}.extend(MonitorMixin)
 
   attr_reader :probes
 
@@ -100,8 +101,10 @@ module Puppet::Util::Instrumentation::Instrumentable
   #   end
   #
   def probe(method, options = {})
-    (@probes ||= []) << Probe.new(method, self, options)
-    INSTRUMENTED_CLASSES[self] = @probes
+    INSTRUMENTED_CLASSES.synchronize {
+      (@probes ||= []) << Probe.new(method, self, options)
+      INSTRUMENTED_CLASSES[self] = @probes
+    }
   end
 
   def self.probes
@@ -123,14 +126,18 @@ module Puppet::Util::Instrumentation::Instrumentable
   end
 
   def self.clear_probes
-    INSTRUMENTED_CLASSES.clear
+    INSTRUMENTED_CLASSES.synchronize {
+      INSTRUMENTED_CLASSES.clear
+    }
     nil # do not leak our probes to the exterior world
   end
 
   def self.each_probe
-    INSTRUMENTED_CLASSES.each_key do |klass|
-      klass.probes.each { |probe| yield probe }
-    end
+    INSTRUMENTED_CLASSES.synchronize {
+      INSTRUMENTED_CLASSES.each_key do |klass|
+        klass.probes.each { |probe| yield probe }
+      end
+    }
     nil # do not leak our probes to the exterior world
   end
 end

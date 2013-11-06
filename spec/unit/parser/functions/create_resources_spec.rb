@@ -23,14 +23,6 @@ describe 'function for dynamically creating resources' do
     expect { @scope.function_create_resources(['foo', 'bar', 'blah', 'baz']) }.to raise_error(ArgumentError, 'create_resources(): wrong number of arguments (4; must be 2 or 3)')
   end
 
-  it 'should require second argument to be a hash' do
-    expect { @scope.function_create_resources(['foo','bar']) }.to raise_error(ArgumentError, 'create_resources(): second argument must be a hash')
-  end
-
-  it 'should require optional third argument to be a hash' do
-    expect { @scope.function_create_resources(['foo',{},'foo']) }.to raise_error(ArgumentError, 'create_resources(): third argument, if provided, must be a hash')
-  end
-
   describe 'when creating native types' do
     it 'empty hash should not cause resources to be added' do
       noop_catalog = compile_to_catalog("create_resources('file', {})")
@@ -83,12 +75,12 @@ describe 'function for dynamically creating resources' do
   end
 
   describe 'when dynamically creating resource types' do
-    it 'should be able to create defined resource types' do
+    it 'should be able to create defined resoure types' do
       catalog = compile_to_catalog(<<-MANIFEST)
         define foocreateresource($one) {
           notify { $name: message => $one }
         }
-
+        
         create_resources('foocreateresource', {'blah'=>{'one'=>'two'}})
       MANIFEST
       catalog.resource(:notify, "blah")['message'].should == 'two'
@@ -100,7 +92,7 @@ describe 'function for dynamically creating resources' do
           define foocreateresource($one) {
             notify { $name: message => $one }
           }
-
+          
           create_resources('foocreateresource', {'blah'=>{}})
         MANIFEST
       }.to raise_error(Puppet::Error, 'Must pass one to Foocreateresource[blah] on node foonode')
@@ -111,7 +103,7 @@ describe 'function for dynamically creating resources' do
         define foocreateresource($one) {
           notify { $name: message => $one }
         }
-
+        
         create_resources('foocreateresource', {'blah'=>{'one'=>'two'}, 'blaz'=>{'one'=>'three'}})
       MANIFEST
 
@@ -126,7 +118,7 @@ describe 'function for dynamically creating resources' do
         }
 
         notify { test: }
-
+        
         create_resources('foocreateresource', {'blah'=>{'one'=>'two', 'require' => 'Notify[test]'}})
       MANIFEST
 

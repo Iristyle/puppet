@@ -7,10 +7,6 @@ class Puppet::SSL::Key::File < Puppet::Indirector::SslFile
   store_in :privatekeydir
   store_ca_at :cakey
 
-  def allow_remote_requests?
-    false
-  end
-
   # Where should we store the public key?
   def public_key_path(name)
     if ca?(name)

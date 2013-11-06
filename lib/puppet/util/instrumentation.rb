@@ -5,6 +5,7 @@ require 'puppet/util/instance_loader'
 class Puppet::Util::Instrumentation
   extend Puppet::Util::ClassGen
   extend Puppet::Util::InstanceLoader
+  extend MonitorMixin
 
   # we're using a ruby lazy autoloader to prevent a loop when requiring listeners
   # since this class sets up an indirection which is also used in Puppet::Indirector::Indirection
@@ -70,9 +71,11 @@ class Puppet::Util::Instrumentation
   end
 
   def self.each_listener(label)
-    @listeners_of[label] ||= @listeners.select do |k,l|
-      l.listen_to?(label)
-    end.each do |l|
+    synchronize {
+      @listeners_of[label] ||= @listeners.select do |k,l|
+        l.listen_to?(label)
+      end
+    }.each do |l|
       yield l
     end
   end
@@ -102,51 +105,67 @@ class Puppet::Util::Instrumentation
   end
 
   def self.subscribe(listener, label_pattern, event)
-    raise "Listener #{listener.name} is already subscribed" if @listeners.include?(listener.name)
-    Puppet.debug "registering instrumentation listener #{listener.name}"
-    @listeners[listener.name] = Listener.new(listener, label_pattern, event)
-    listener.subscribed if listener.respond_to?(:subscribed)
-    rehash
+    synchronize {
+      raise "Listener #{listener.name} is already subscribed" if @listeners.include?(listener.name)
+      Puppet.debug "registering instrumentation listener #{listener.name}"
+      @listeners[listener.name] = Listener.new(listener, label_pattern, event)
+      listener.subscribed if listener.respond_to?(:subscribed)
+      rehash
+    }
   end
 
   def self.unsubscribe(listener)
-    Puppet.warning("#{listener.name} hasn't been registered but asked to be unregistered") unless @listeners.include?(listener.name)
-    Puppet.info "unregistering instrumentation listener #{listener.name}"
-    @listeners.delete(listener.name)
-    listener.unsubscribed if listener.respond_to?(:unsubscribed)
-    rehash
+    synchronize {
+      Puppet.warning("#{listener.name} hasn't been registered but asked to be unregistered") unless @listeners.include?(listener.name)
+      Puppet.info "unregistering instrumentation listener #{listener.name}"
+      @listeners.delete(listener.name)
+      listener.unsubscribed if listener.respond_to?(:unsubscribed)
+      rehash
+    }
   end
 
   def self.init
     # let's init our probe indirection
     require 'puppet/util/instrumentation/indirection_probe'
-    @listeners ||= {}
-    @listeners_of ||= {}
-    instance_loader(:listener).loadall
+    synchronize {
+      @listeners ||= {}
+      @listeners_of ||= {}
+      instance_loader(:listener).loadall
+    }
   end
 
   def self.clear
-    @listeners = {}
-    @listeners_of = {}
-    @id = 0
+    synchronize {
+      @listeners = {}
+      @listeners_of = {}
+      @id = 0
+    }
   end
 
   def self.[](key)
-    @listeners[key.intern]
+    synchronize {
+      @listeners[key.intern]
+    }
   end
 
   def self.[]=(key, value)
-    @listeners[key.intern] = value
-    rehash
+    synchronize {
+      @listeners[key.intern] = value
+      rehash
+    }
   end
 
   private
 
+  # should be called only under the guard
+  # self.synchronize
   def self.rehash
     @listeners_of = {}
   end
 
   def self.next_id
-    @id = (@id || 0) + 1
+    synchronize {
+      @id = (@id || 0) + 1
+    }
   end
 end

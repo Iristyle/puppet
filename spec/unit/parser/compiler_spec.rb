@@ -107,20 +107,22 @@ describe Puppet::Parser::Compiler do
     @compiler.classlist.sort.should == %w{one two}.sort
   end
 
-  it "should clear the global caches before compile" do
+  it "should clear the thread local caches before compile" do
     compiler = stub 'compiler'
     Puppet::Parser::Compiler.expects(:new).with(@node).returns compiler
     catalog = stub 'catalog'
     compiler.expects(:compile).returns catalog
     catalog.expects(:to_resource)
 
-    $known_resource_types = "rspec"
-    $env_module_directories = "rspec"
+    [:known_resource_types, :env_module_directories].each do |var|
+      Thread.current[var] = "rspec"
+    end
 
     Puppet::Parser::Compiler.compile(@node)
 
-    $known_resource_types = nil
-    $env_module_directories = nil
+    [:known_resource_types, :env_module_directories].each do |var|
+      Thread.current[var].should == nil
+    end
   end
 
   describe "when initializing" do

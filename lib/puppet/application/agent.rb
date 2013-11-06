@@ -67,7 +67,12 @@ class Puppet::Application::Agent < Puppet::Application
   end
 
   option("--logdest DEST", "-l DEST") do |arg|
-    handle_logdest_arg(arg)
+    begin
+      Puppet::Util::Log.newdestination(arg)
+      options[:setdest] = true
+    rescue => detail
+      Puppet.log_exception(detail)
+    end
   end
 
   option("--waitforcert WAITFORCERT", "-w") do |arg|

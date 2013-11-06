@@ -21,18 +21,11 @@ class Puppet::FileServing::Base
 
   # Return the full path to our file.  Fails if there's no path set.
   def full_path(dummy_argument=:work_arround_for_ruby_GC_bug)
-    if relative_path.nil? or relative_path == "" or relative_path == "."
-       full_path = path
+    (if relative_path.nil? or relative_path == "" or relative_path == "."
+       path
      else
-       full_path = File.join(path, relative_path)
-     end
-
-     if Puppet.features.microsoft_windows?
-       # Replace multiple slashes as long as they aren't at the beginning of a filename
-       full_path.gsub(%r{(./)/+}, '\1')
-     else
-       full_path.gsub(%r{//+}, '/')
-     end
+       File.join(path, relative_path)
+     end).gsub(%r{//+}, "/")
   end
 
   def initialize(path, options = {})
@@ -71,18 +64,14 @@ class Puppet::FileServing::Base
     File.send(@stat_method, full_path)
   end
 
-  def to_data_hash
-    {
-      'path'          => @path,
-      'relative_path' => @relative_path,
-      'links'         => @links
-    }
-  end
-
   def to_pson_data_hash
     {
       # No 'document_type' since we don't send these bare
-      'data'       => to_data_hash,
+      'data'       => {
+        'path'          => @path,
+        'relative_path' => @relative_path,
+        'links'         => @links
+        },
       'metadata' => {
         'api_version' => 1
         }

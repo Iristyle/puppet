@@ -106,29 +106,25 @@ class Puppet::FileServing::Metadata < Puppet::FileServing::Base
     super(path,data)
   end
 
-  def to_data_hash
-    super.update(
-      {
-        'owner'        => owner,
-        'group'        => group,
-        'mode'         => mode,
-        'checksum'     => {
-          'type'   => checksum_type,
-          'value'  => checksum
-        },
-        'type'         => ftype,
-        'destination'  => destination,
-
-      }
-    )
-  end
-
   PSON.register_document_type('FileMetadata',self)
   def to_pson_data_hash
     {
       'document_type' => 'FileMetadata',
-      'data'          => to_data_hash,
-      'metadata'      => {
+
+        'data'       => super['data'].update(
+          {
+          'owner'        => owner,
+          'group'        => group,
+          'mode'         => mode,
+          'checksum'     => {
+            'type'   => checksum_type,
+            'value'  => checksum
+        },
+        'type'         => ftype,
+        'destination'  => destination,
+
+        }),
+      'metadata' => {
         'api_version' => 1
         }
     }

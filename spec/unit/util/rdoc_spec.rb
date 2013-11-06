@@ -5,7 +5,15 @@ require 'puppet/util/rdoc'
 require 'rdoc/rdoc'
 
 describe Puppet::Util::RDoc do
-  describe "when generating RDoc HTML documentation" do
+  it "should fail with a clear error without RDoc 1.*" do
+    Puppet.features.stubs(:rdoc1?).returns(false)
+
+    expect {
+      Puppet::Util::RDoc.rdoc("output", [])
+    }.to raise_error(/the version of RDoc .* is not supported/)
+  end
+
+  describe "when generating RDoc HTML documentation", :if => Puppet.features.rdoc1? do
     before :each do
       @rdoc = stub_everything 'rdoc'
       RDoc::RDoc.stubs(:new).returns(@rdoc)
@@ -14,6 +22,12 @@ describe Puppet::Util::RDoc do
     it "should tell the parser to ignore import" do
       Puppet.expects(:[]=).with(:ignoreimport, true)
       Puppet::Util::RDoc.rdoc("output", [])
+    end
+
+    it "should install the Puppet HTML Generator into RDoc generators" do
+      Puppet::Util::RDoc.rdoc("output", [])
+
+      RDoc::RDoc::GENERATORS["puppet"].file_name.should == "puppet/util/rdoc/generators/puppet_generator.rb"
     end
 
     it "should tell RDoc to generate documentation using the Puppet generator" do
@@ -34,26 +48,18 @@ describe Puppet::Util::RDoc do
       Puppet::Util::RDoc.rdoc("output", [], "utf-8")
     end
 
-    describe "with rdoc1", :if => Puppet.features.rdoc1? do
-      it "should install the Puppet HTML Generator into RDoc generators" do
-        Puppet::Util::RDoc.rdoc("output", [])
+    it "should tell RDoc to force updates of indices when RDoc supports it" do
+      Options::OptionList.stubs(:options).returns([["--force-update", "-U", 0 ]])
+      @rdoc.expects(:document).with { |args| args.include?("--force-update") }
 
-        RDoc::RDoc::GENERATORS["puppet"].file_name.should == "puppet/util/rdoc/generators/puppet_generator.rb"
-      end
+      Puppet::Util::RDoc.rdoc("output", [])
+    end
 
-      it "should tell RDoc to force updates of indices when RDoc supports it" do
-        ::Options::OptionList.stubs(:options).returns([["--force-update", "-U", 0 ]])
-        @rdoc.expects(:document).with { |args| args.include?("--force-update") }
+    it "should not tell RDoc to force updates of indices when RDoc doesn't support it" do
+      Options::OptionList.stubs(:options).returns([])
+      @rdoc.expects(:document).never.with { |args| args.include?("--force-update") }
 
-        Puppet::Util::RDoc.rdoc("output", [])
-      end
-
-      it "should not tell RDoc to force updates of indices when RDoc doesn't support it" do
-        ::Options::OptionList.stubs(:options).returns([])
-        @rdoc.expects(:document).never.with { |args| args.include?("--force-update") }
-
-        Puppet::Util::RDoc.rdoc("output", [])
-      end
+      Puppet::Util::RDoc.rdoc("output", [])
     end
 
     it "should tell RDoc to use the given outputdir" do

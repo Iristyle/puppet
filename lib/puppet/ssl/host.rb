@@ -264,14 +264,14 @@ ERROR_STRING
     @ssl_store
   end
 
-  def to_data_hash
+  def to_pson(*args)
     my_cert = Puppet::SSL::Certificate.indirection.find(name)
-    result = { :name  => name }
+    pson_hash = { :name  => name }
 
     my_state = state
 
-    result[:state] = my_state
-    result[:desired_state] = desired_state if desired_state
+    pson_hash[:state] = my_state
+    pson_hash[:desired_state] = desired_state if desired_state
 
     thing_to_use = (my_state == 'requested') ? certificate_request : my_cert
 
@@ -280,7 +280,7 @@ ERROR_STRING
     # pson[:fingerprints][:default]
     # It appears that we have no internal consumers of this api
     # --jeffweiss 30 aug 2012
-    result[:fingerprint] = thing_to_use.fingerprint
+    pson_hash[:fingerprint] = thing_to_use.fingerprint
 
     # The above fingerprint doesn't tell us what message digest algorithm was used
     # No problem, except that the default is changing between 2.7 and 3.0. Also, as
@@ -289,19 +289,15 @@ ERROR_STRING
     # So, when we add the newer fingerprints, we're explicit about the hashing
     # algorithm used.
     # --jeffweiss 31 july 2012
-    result[:fingerprints] = {}
-    result[:fingerprints][:default] = thing_to_use.fingerprint
+    pson_hash[:fingerprints] = {}
+    pson_hash[:fingerprints][:default] = thing_to_use.fingerprint
 
     suitable_message_digest_algorithms.each do |md|
-      result[:fingerprints][md] = thing_to_use.fingerprint md
+      pson_hash[:fingerprints][md] = thing_to_use.fingerprint md
     end
-    result[:dns_alt_names] = thing_to_use.subject_alt_names
+    pson_hash[:dns_alt_names] = thing_to_use.subject_alt_names
 
-    result
-  end
-
-  def to_pson(*args)
-    to_data_hash.to_pson(*args)
+    pson_hash.to_pson(*args)
   end
 
   # eventually we'll probably want to move this somewhere else or make it

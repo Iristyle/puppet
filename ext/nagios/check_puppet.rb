@@ -99,16 +99,16 @@ class CheckPuppet
       process = "process #{OPTIONS[:process]} is not running"
     end
 
-    case
-    when (@proc == 2 or @file == 2)
-      status = "CRITICAL"
-      exitcode = 2
-    when (@proc == 0 and @file == 0)
+    case @proc or @file
+    when 0
       status = "OK"
       exitcode = 0
-    else
+    when 2
+      status = "CRITICAL"
+      exitcode = 2
+    when 3
       status = "UNKNOWN"
-      exitcode = 3
+      exitcide = 3
     end
 
     puts "PUPPET #{status}: #{process}, #{state}"

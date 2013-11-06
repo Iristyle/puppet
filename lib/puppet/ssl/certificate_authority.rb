@@ -1,3 +1,4 @@
+require 'monitor'
 require 'puppet/ssl/host'
 require 'puppet/ssl/certificate_request'
 require 'puppet/ssl/certificate_signer'
@@ -27,6 +28,8 @@ class Puppet::SSL::CertificateAuthority
   require 'puppet/ssl/certificate_authority/interface'
   require 'puppet/network/authstore'
 
+  extend MonitorMixin
+
   class CertificateVerificationError < RuntimeError
     attr_accessor :error_code
 
@@ -36,7 +39,9 @@ class Puppet::SSL::CertificateAuthority
   end
 
   def self.singleton_instance
-    @singleton_instance ||= new
+    synchronize do
+      @singleton_instance ||= new
+    end
   end
 
   class CertificateSigningError < RuntimeError

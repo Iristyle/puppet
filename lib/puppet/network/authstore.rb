@@ -82,20 +82,21 @@ module Puppet
     end
 
     def interpolate(match)
-      @modified_declarations = @declarations.collect { |ace| ace.interpolate(match) }.sort
+      Thread.current[:declarations] = @declarations.collect { |ace| ace.interpolate(match) }.sort
     end
 
     def reset_interpolation
-      @modified_declarations = nil
+      Thread.current[:declarations] = nil
     end
 
     private
 
-    # Returns our ACEs list, but if we have a modification of it, let's return
-    # it. This is used if we want to override the this purely immutable list
-    # by a modified version.
+    # returns our ACEs list, but if we have a modification of it
+    # in our current thread, let's return it
+    # this is used if we want to override the this purely immutable list
+    # by a modified version in a multithread safe way.
     def declarations
-      @modified_declarations || @declarations
+      Thread.current[:declarations] || @declarations
     end
 
     # Store the results of a pattern into our hash.  Basically just
