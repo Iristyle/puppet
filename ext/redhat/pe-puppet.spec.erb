@@ -61,6 +61,12 @@
     %global               _mandir %{_prefix}/share/man
 %endif
 
+%if 0%{?_aix}
+  %global               _symlinkdir /usr/bin
+%else
+  %global               _symlinkdir /usr/local/bin
+%endif
+
 %define ruby          %{_bindir}/ruby
 
 # On AIX, the puppet user is just "puppet" not "pe-puppet"
@@ -263,14 +269,14 @@ rm -rf $RPM_BUILD_ROOT/%{_sysconfdir}/%{_name}/fileserver.conf \
        $RPM_BUILD_ROOT/%{_mandir}/man8/puppet-master.8.gz
 %endif
 
-mkdir -p %{buildroot}/usr/local/bin/
-ln -sf %{_prefix}/bin/puppet %{buildroot}/usr/local/bin/puppet
+mkdir -p %{buildroot}%{_symlinkdir}
+ln -sf %{_prefix}/bin/puppet %{buildroot}%{_symlinkdir}/puppet
 
 %files
 %defattr(-, root, root, 0755)
 %doc LICENSE README.md examples
 %{_bindir}/puppet
-/usr/local/bin/puppet
+%{_symlinkdir}/puppet
 %{_bindir}/extlookup2hiera
 %{ruby_sitelibdir}/*
 %dir %{_sysconfdir}/%{_name}
