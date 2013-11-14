@@ -42,6 +42,7 @@ Puppet::Type.type(:file).provide :windows do
 
   def owner=(should)
     begin
+      # require 'pry'; binding.pry
       path = resource[:links] == :manage ? file.path.to_s : file.readlink
 
       set_owner(should, path)
@@ -57,6 +58,7 @@ Puppet::Type.type(:file).provide :windows do
 
   def group=(should)
     begin
+      # require 'pry'; binding.pry
       path = resource[:links] == :manage ? file.path.to_s : file.readlink
 
       set_group(should, path)
@@ -67,7 +69,8 @@ Puppet::Type.type(:file).provide :windows do
 
   def mode
     if resource.stat
-      mode = get_mode(resource[:path])
+      path = resource[:links] == :manage ? file.path.to_s : file.readlink
+      mode = get_mode(path)
       mode ? mode.to_s(8) : :absent
     else
       :absent
@@ -76,12 +79,15 @@ Puppet::Type.type(:file).provide :windows do
 
   def mode=(value)
     begin
-      set_mode(value.to_i(8), resource[:path])
+      # require 'pry'; binding.pry if file.path.to_s =~ /link/
+      path = resource[:links] == :manage ? file.path.to_s : file.readlink
+      set_mode(value.to_i(8), path)
     rescue => detail
       error = Puppet::Error.new("failed to set mode #{mode} on #{resource[:path]}: #{detail.message}")
       error.set_backtrace detail.backtrace
       raise error
     end
+    # require 'pry'; binding.pry if file.path.to_s =~ /link/
     :file_changed
   end
 

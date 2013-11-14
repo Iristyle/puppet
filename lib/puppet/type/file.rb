@@ -629,6 +629,8 @@ Puppet::Type.newtype(:file) do
   end
 
   def retrieve
+    # require 'pry'; binding.pry
+
     if source = parameter(:source)
       source.copy_source_values
     end
@@ -836,6 +838,8 @@ Puppet::Type.newtype(:file) do
   def property_fix
     properties.each do |thing|
       next unless [:mode, :owner, :group, :seluser, :selrole, :seltype, :selrange].include?(thing.name)
+
+      # require 'pry'; binding.pry
 
       # Make sure we get a new stat objct
       @stat = :needs_stat

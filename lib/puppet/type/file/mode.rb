@@ -130,6 +130,8 @@ module Puppet
     # don't have access to the calculated "desired" value here, or the
     # "current" value, only the "should" value we need to retrieve again.
     def sync
+      # require 'pry'; binding.pry
+
       current = @resource.stat ? @resource.stat.mode : 0644
       set(desired_mode_from_current(@should[0], current).to_s(8))
     end

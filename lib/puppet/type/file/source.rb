@@ -111,6 +111,8 @@ module Puppet
     def copy_source_values
       devfail "Somehow got asked to copy source values without any metadata" unless metadata
 
+      # require 'pry'; binding.pry
+
       # Take each of the stats and set them as states on the local file
       # if a value has not already been provided.
       [:owner, :mode, :group, :checksum].each do |metadata_method|
