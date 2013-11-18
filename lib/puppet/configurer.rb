@@ -44,7 +44,7 @@ class Puppet::Configurer
   rescue => detail
     Puppet.log_exception(detail, "Removing corrupt state file #{Puppet[:statefile]}: #{detail}")
     begin
-      ::File.unlink(Puppet[:statefile])
+      Puppet::FileSystem::File.unlink(Puppet[:statefile])
       retry
     rescue => detail
       raise Puppet::Error.new("Cannot remove #{Puppet[:statefile]}: #{detail}")
@@ -157,7 +157,9 @@ class Puppet::Configurer
             query_options = nil
           end
         end
-      rescue Puppet::Error, Net::HTTPError => detail
+      rescue SystemExit,NoMemoryError
+        raise
+      rescue Exception => detail
         Puppet.warning("Unable to fetch my node definition, but the agent run will continue:")
         Puppet.warning(detail)
       end
