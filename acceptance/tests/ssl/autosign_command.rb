@@ -1,7 +1,7 @@
 require 'puppet/acceptance/common_utils'
 extend Puppet::Acceptance::CAUtils
 
-test_name "autosign_command and csr attributes behavior (#7243,#7244)" do
+test_name "autosign command and csr attributes behavior (#7243,#7244)" do
 
   def assert_key_generated(name)
     assert_match(/Creating a new SSL key for #{name}/, stdout, "Expected agent to create a new SSL key for autosigning")
@@ -20,10 +20,18 @@ test_name "autosign_command and csr attributes behavior (#7243,#7244)" do
     reset_agent_ssl
   end
 
+  hostname = master.execute('facter hostname')
+  fqdn = master.execute('facter fqdn')
+
   reset_agent_ssl(false)
 
-  step "Step 1: ensure autosign_command can approve CSRs" do
-    master_opts = {'master' => {'autosign' => 'false', 'autosign_command' => '/bin/true'}}
+  step "Step 1: ensure autosign command can approve CSRs" do
+    master_opts = {
+      'master' => {
+        'autosign' => '/bin/true',
+        'dns_alt_names' => "puppet,#{hostname},#{fqdn}",
+      }
+    }
     with_puppet_running_on(master, master_opts) do
       agents.each do |agent|
         next if agent == master
@@ -37,8 +45,13 @@ test_name "autosign_command and csr attributes behavior (#7243,#7244)" do
 
   reset_agent_ssl(false)
 
-  step "Step 2: ensure autosign_command can reject CSRs" do
-    master_opts = {'master' => {'autosign' => 'false', 'autosign_command' => '/bin/false'}}
+  step "Step 2: ensure autosign command can reject CSRs" do
+    master_opts = {
+      'master' => {
+        'autosign' => '/bin/false',
+        'dns_alt_names' => "puppet,#{hostname},#{fqdn}",
+      }
+    }
     with_puppet_running_on(master, master_opts) do
       agents.each do |agent|
         next if agent == master
@@ -51,22 +64,21 @@ test_name "autosign_command and csr attributes behavior (#7243,#7244)" do
   end
 
   autosign_inspect_csr_path = "#{testdirs[master]}/autosign_inspect_csr.rb"
-  step "Step 3: setup an autosign_command that inspects CSR attributes" do
+  step "Step 3: setup an autosign command that inspects CSR attributes" do
     autosign_inspect_csr = <<-END
 #!/usr/bin/env ruby
 require 'openssl'
 
 def unwrap_attr(attr)
   set = attr.value
-  seq = set.value.first
-  str = seq.value.first
+  str = set.value.first
   str.value
 end
 
 csr_text = STDIN.read
 csr = OpenSSL::X509::Request.new(csr_text)
 passphrase = csr.attributes.find { |a| a.oid == '1.3.6.1.4.1.34380.2.1' }
-# And here we jump hoops to unwrap ASN1's Attr Set Seq Str
+# And here we jump hoops to unwrap ASN1's Attr Set Str
 if unwrap_attr(passphrase) == 'my passphrase'
   exit 0
 end
@@ -89,7 +101,7 @@ custom_attributes:
     END
 
     agents.each do |agent|
-      next if agent == master
+#      next if agent == master
 
       agent_csr_attributes[agent] = "#{testdirs[agent]}/csr_attributes.yaml"
       create_remote_file(agent, agent_csr_attributes[agent], csr_attributes)
@@ -101,8 +113,8 @@ custom_attributes:
   step "Step 5: successfully obtain a cert" do
     master_opts = {
       'master' => {
-        'autosign' => 'false',
-        'autosign_command' => autosign_inspect_csr_path,
+        'autosign' => autosign_inspect_csr_path,
+        'dns_alt_names' => "puppet,#{hostname},#{fqdn}",
       },
       :__commandline_args__ => '--debug --trace',
     }
