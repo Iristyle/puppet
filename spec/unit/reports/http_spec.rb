@@ -19,7 +19,7 @@ describe processor do
       Puppet[:reporturl] = 'https://testing:8080/the/path'
 
       Puppet::Network::HttpPool.expects(:http_instance).with(
-        'testing', 8080, true
+        'testing', 8080, true, false
       ).returns http
 
       subject.process
@@ -29,7 +29,7 @@ describe processor do
       Puppet[:reporturl] = "http://testing:8080/the/path"
 
       Puppet::Network::HttpPool.expects(:http_instance).with(
-        'testing', 8080, false
+        'testing', 8080, false, false
       ).returns http
 
       subject.process

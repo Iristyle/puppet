@@ -1,3 +1,5 @@
+require 'puppet/indirector/data_binding/hiera'
+
 module Puppet::Test
   # This class is intended to provide an API to be used by external projects
   #  when they are running tests that depend on puppet core.  This should
