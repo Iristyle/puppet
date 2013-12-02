@@ -10,18 +10,12 @@ module Puppet
   # Support reading the PE version data written by the installer and
   # annotating the version number displayed to inform the client.
   PEVersionFile = '/opt/puppet/pe_version'
-  if File.readable? PEVersionFile then
-    if File.zero? PEVersionFile then
-      PEVersion = ""
-    else
-      PEVersion = " #{File.new(PEVersionFile).gets}"
-    end
-  else
-    PEVersion = nil
-  end
+  PEBuildFile = '/opt/puppet/pe_build'
 
-  if PEVersion then
-    PUPPETVERSION = '3.3.2 (Puppet Enterprise%s)' % PEVersion.to_s.rstrip.chomp
+  if File.readable? PEBuildFile and !File.zero? PEBuildFile
+    PUPPETVERSION = "3.3.2 (Puppet Enterprise #{File.new(PEBuildFile).gets.chomp})"
+  elsif File.readable? PEVersionFile and !File.zero? PEVersionFile
+    PUPPETVERSION = "3.3.2 (Puppet Enterprise #{File.new(PEVERSIONFile).gets.chomp})"
   else
     PUPPETVERSION = '3.3.2'
   end
