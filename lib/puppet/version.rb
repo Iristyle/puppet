@@ -15,7 +15,7 @@ module Puppet
   if File.readable? PEBuildFile and !File.zero? PEBuildFile
     PUPPETVERSION = "3.3.2 (Puppet Enterprise #{File.new(PEBuildFile).gets.chomp})"
   elsif File.readable? PEVersionFile and !File.zero? PEVersionFile
-    PUPPETVERSION = "3.3.2 (Puppet Enterprise #{File.new(PEVERSIONFile).gets.chomp})"
+    PUPPETVERSION = "3.3.2 (Puppet Enterprise #{File.new(PEVersionFile).gets.chomp})"
   else
     PUPPETVERSION = '3.3.2'
   end
