@@ -80,6 +80,14 @@ Could not connect to #{@uri}
       response = options[:response]
       @response = "#{response.code} #{response.message.strip}"
 
+      begin
+        body = PSON.parse(response.body)
+        if body['message']
+          @message ||= body['message'].strip
+        end
+      rescue PSON::ParserError
+      end
+
       message = "Could not execute operation for '#{@input}'. Detail: "
       message << @message << " / " if @message
       message << @response << "."
