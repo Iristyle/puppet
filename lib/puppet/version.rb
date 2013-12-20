@@ -13,11 +13,11 @@ module Puppet
   PEBuildFile = '/opt/puppet/pe_build'
 
   if File.readable? PEBuildFile and !File.zero? PEBuildFile
-    PUPPETVERSION = "3.4.0-rc2 (Puppet Enterprise #{File.new(PEBuildFile).gets.chomp})"
+    PUPPETVERSION = "3.4.0 (Puppet Enterprise #{File.new(PEBuildFile).gets.chomp})"
   elsif File.readable? PEVersionFile and !File.zero? PEVersionFile
-    PUPPETVERSION = "3.4.0-rc2 (Puppet Enterprise #{File.new(PEVersionFile).gets.chomp})"
+    PUPPETVERSION = "3.4.0 (Puppet Enterprise #{File.new(PEVersionFile).gets.chomp})"
   else
-    PUPPETVERSION = '3.4.0-rc2'
+    PUPPETVERSION = '3.4.0'
   end
 
   ##
