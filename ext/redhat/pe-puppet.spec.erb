@@ -194,6 +194,7 @@ rm -rf %{buildroot}/etc/puppet
 install -d -m0755 %{buildroot}%{_localstatedir}/lib/%{name}
 %else
 install -d -m0755 %{buildroot}%{_localstatedir}/opt/lib/%{name}
+install -d -m0750 %{buildroot}%{_localstatedir}/opt/lib/%{name}/reports
 %endif
 
 install -d -m0755 %{buildroot}%{_sysconfdir}/%{_name}/manifests
@@ -335,8 +336,10 @@ ln -sf %{_prefix}/bin/puppet %{buildroot}%{_symlinkdir}/puppet
 %{_localstatedir}/log/%{name}
 %if 0%{?_aix}
 %{_localstatedir}/lib/%{name}
+%{_localstatedir}/lib/%{name}/reports
 %else
 %{_localstatedir}/opt/lib/%{name}
+%{_localstatedir}/opt/lib/%{name}/reports
 %endif
 
 %if 0%{?build_server}
