@@ -68,7 +68,7 @@ case "$1" in
 
         # startproc should return 0, even if service is
         # already running to match LSB spec.
-        startproc $puppetd ${PUPPET_OPTS} ${PUPPET_EXTRA_OPTS} && touch ${lockfile}
+        startproc -p ${pidfile} $puppetd ${PUPPET_OPTS} ${PUPPET_EXTRA_OPTS} && touch ${lockfile}
         # Remember status and be verbose
         rc_status -v
         ;;
@@ -78,7 +78,7 @@ case "$1" in
         ## set echo the echo return value.
         pid=`cat $pidfile 2> /dev/null`
 
-        killproc -QUIT $puppetd && (
+        killproc -QUIT -p ${pidfile} $puppetd && (
         i=0
         if [ -n "${pid:-}" ]; then
           while kill -0 "${pid:-}" 2> /dev/null;  do
@@ -125,7 +125,7 @@ case "$1" in
 
         echo -n "Reload service puppet"
         ## if it supports it:
-        killproc -HUP $puppetd
+        killproc -HUP -p ${pidfile} $puppetd
         rc_status -v
         ;;
     reload)
@@ -134,7 +134,7 @@ case "$1" in
 
         # If it supports signalling:
         echo -n "Reload puppet services."
-        killproc -HUP  $puppetd
+        killproc -HUP -p ${pidfile} $puppetd
         rc_status -v
         ;;
     status)
