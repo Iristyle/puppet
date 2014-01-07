@@ -10,3 +10,4 @@ opt/puppet/share/puppet/ext
 opt/puppet/share/puppet/modules
 var/log/pe-puppet
 var/opt/lib/pe-puppet/ssl
+var/opt/lib/pe-puppet/reports
