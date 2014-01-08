@@ -217,6 +217,7 @@ install -Dp -m0644 %{confdir}/%{name}-logrotate %{buildroot}%{_real_sysconfdir}/
 install -Dp -m0644 %{confdir}/%{name}-fileserver.conf %{buildroot}%{_sysconfdir}/%{_name}/fileserver.conf
 install -Dp -m0644 %{confdir}/%{name}.conf %{buildroot}%{_sysconfdir}/%{_name}/puppet.conf
 install -Dp -m0644 conf/auth.conf %{buildroot}%{_sysconfdir}/%{_name}/auth.conf
+touch %{buildroot}%{_sysconfdir}/%{_name}/console.conf
 
 # Add tests from spec dir
 #install -d -m0755 %{buildroot}%{ruby_sitelibdir}/puppet/spec
@@ -267,6 +268,7 @@ rm -rf $RPM_BUILD_ROOT/%{_sysconfdir}/%{_name}/fileserver.conf \
        $RPM_BUILD_ROOT/%{_sysconfdir}/%{_name}/files \
        $RPM_BUILD_ROOT/%{_localstatedir}/opt/lib/%{name}master/config.ru \
        $RPM_BUILD_ROOT/%{_sysconfdir}/httpd/conf.d/puppetmaster.conf \
+       $RPM_BUILD_ROOT/%{_sysconfdir}/%{_name}/console.conf \
        $RPM_BUILD_ROOT/%{_mandir}/man8/puppet-master.8.gz
 %endif
 
@@ -346,6 +348,7 @@ ln -sf %{_prefix}/bin/puppet %{buildroot}%{_symlinkdir}/puppet
 %files server
 %defattr(-, root, %{puppetuser}, 0755)
 %config(noreplace) %{_sysconfdir}/%{_name}/fileserver.conf
+%config(noreplace) %{_sysconfdir}/%{_name}/console.conf
 %dir %{_sysconfdir}/%{_name}/manifests
 %dir %{_sysconfdir}/%{_name}/modules
 %dir %{_sysconfdir}/%{_name}/files
