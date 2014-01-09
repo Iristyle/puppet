@@ -1,6 +1,7 @@
 debian/conf/fileserver.conf                        etc/puppetlabs/puppet
 etc/puppetlabs/httpd/conf.d/puppetmaster.conf
 etc/puppetlabs/puppet/auth.conf
+etc/puppetlabs/puppet/console.conf
 opt/puppet/share/man/man8/puppet-ca.8.gz
 opt/puppet/share/man/man8/puppet-master.8.gz
 var/opt/lib/pe-puppetmaster/config.ru

@@ -20,7 +20,8 @@ common-install-indep::
 	mkdir -p $(CURDIR)/debian/tmp/$(pe_etc)/httpd/conf.d \
 	    $(CURDIR)/debian/tmp/var/opt/lib/pe-puppetmaster
 	touch $(CURDIR)/debian/tmp/$(pe_etc)/httpd/conf.d/puppetmaster.conf \
-	    $(CURDIR)/debian/tmp/var/opt/lib/pe-puppetmaster/config.ru
+	    $(CURDIR)/debian/tmp/var/opt/lib/pe-puppetmaster/config.ru \
+	    $(CURDIR)/debian/tmp/$(pe_etc)/puppet/console.conf
 	mkdir -p $(CURDIR)/debian/tmp/$(pe_prefix)/share/puppet/ext
 	mkdir -p $(CURDIR)/debian/tmp/$(pe_prefix)/share/puppet/modules
 	cp -pr $(CURDIR)/ext $(CURDIR)/debian/tmp/$(pe_prefix)/share/puppet
