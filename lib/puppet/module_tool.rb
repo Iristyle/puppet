@@ -90,16 +90,18 @@ module Puppet
 
     def self.build_tree(mods, dir)
       mods.each do |mod|
-        version_string = mod[:version][:vstring].sub(/^(?!v)/, 'v')
+        version_string = mod[:version].to_s.sub(/^(?!v)/, 'v')
 
         if mod[:action] == :upgrade
-          previous_version = mod[:previous_version].sub(/^(?!v)/, 'v')
+          previous_version = mod[:previous_version].to_s.sub(/^(?!v)/, 'v')
           version_string = "#{previous_version} -> #{version_string}"
         end
 
-        mod[:text] = "#{mod[:module]} (#{colorize(:cyan, version_string)})"
+        mod[:text] = "#{mod[:release].name} (#{colorize(:cyan, version_string)})"
         mod[:text] += " [#{mod[:path]}]" unless mod[:path] == dir
-        build_tree(mod[:dependencies], dir)
+
+        deps = (mod[:dependencies] || []).sort_by! { |x| x[:release].name }
+        build_tree(deps, dir)
       end
     end
 
