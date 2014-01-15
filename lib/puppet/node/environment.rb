@@ -377,15 +377,23 @@ class Puppet::Node::Environment
   # @return [Hash<String, Array<Hash<String, String>>>] See the method example
   #   for an explanation of the return value.
   def module_requirements
-    deps = Hash.new { |h, k| h[k.tr('/', '-')] if h.key? k.tr('/', '-') }
+    deps = Hash.new do |hash, key|
+      forgish = key.tr('-', '/')
+      dashish = key.tr('/', '-')
+
+      if hash.key? forgish
+        hash[dashish] = hash[forgish]
+      elsif hash.key? dashish
+        hash[forgish] = hash[dashish]
+      else
+        hash[forgish] = hash[dashish] = []
+      end
+    end
 
     modules.each do |mod|
       next unless mod.forge_name
-      deps[mod.forge_name] ||= []
       mod.dependencies and mod.dependencies.each do |mod_dep|
-        dep_name = mod_dep['name'].tr('-', '/')
-        deps[dep_name] ||= []
-        deps[dep_name] << {
+        deps[mod_dep['name']] << {
           'name'                => mod.forge_name,
           'version'             => mod.version,
           'version_requirement' => mod_dep['version_requirement']
