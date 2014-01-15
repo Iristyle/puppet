@@ -31,7 +31,7 @@ class Puppet::Module
     Puppet::Node::Environment.new(environment).module(modname)
   end
 
-  attr_reader :name, :environment, :path, :metadata
+  attr_reader :name, :environment, :path
   attr_writer :environment
 
   attr_accessor :dependencies, :forge_name
@@ -112,7 +112,7 @@ class Puppet::Module
   end
 
   def load_metadata
-    @metadata = data = PSON.parse File.read(metadata_file)
+    data = PSON.parse File.read(metadata_file)
     @forge_name = data['name'].gsub('-', '/') if data['name']
 
     [:source, :author, :version, :license, :puppetversion, :dependencies].each do |attr|

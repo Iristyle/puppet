@@ -12,7 +12,6 @@ module Puppet::ModuleTool
       def run
         results = {}
         begin
-          Puppet.notice "Searching #{@forge.uri} ..."
           results[:answers] = @forge.search(@term)
           results[:result] = :success
         rescue ForgeError => e
