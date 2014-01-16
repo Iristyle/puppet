@@ -1,0 +1,4 @@
+.rbenv-*
+.yardoc
+coverage
+doc

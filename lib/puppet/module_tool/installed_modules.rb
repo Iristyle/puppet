@@ -1,0 +1,75 @@
+require 'pathname'
+
+require 'puppet/forge'
+require 'puppet/module_tool'
+
+module Puppet::ModuleTool
+  class InstalledModules < Semantic::Dependency::Source
+    attr_reader :modules
+
+    def initialize
+      env = Puppet::Node::Environment.current
+      modules = env.modules_by_path
+
+      @fetched = []
+      @modules = {}
+      env.modulepath.each do |path|
+        modules[path].each do |mod|
+          release = ModuleRelease.new(self, mod)
+          @modules[release.name] ||= release
+        end
+      end
+
+      @modules.freeze
+    end
+
+    def fetch(name)
+      name = name.tr('/', '-')
+
+      if @modules.key? name
+        @fetched << name
+        [ @modules[name] ]
+      else
+        [ ]
+      end
+    end
+
+    def fetched
+      @fetched
+    end
+
+    class ModuleRelease < Semantic::Dependency::ModuleRelease
+      attr_reader :mod, :metadata
+
+      def initialize(source, mod)
+        @mod = mod
+        @metadata = mod.metadata
+        name = mod.forge_name.tr('/', '-')
+        version = Semantic::Version.parse(mod.version)
+
+        if mod.dependencies
+          dependencies = mod.dependencies.map do |dep|
+            range = dep['version_requirement'] || dep['versionRequirement'] || '>=0'
+            range = Semantic::VersionRange.parse(range) rescue Semantic::VersionRange::EMPTY_RANGE
+            [ dep['name'].tr('/', '-'), range ]
+          end
+          dependencies = Hash[dependencies]
+        end
+
+        super(source, name, version, dependencies || {})
+      end
+
+      def install_dir
+        Pathname.new(@mod.path).dirname
+      end
+
+      def install(dir)
+        # If we're already installed, there's no need for us to faff about.
+      end
+
+      def prepare
+        # We're already installed; what preparation remains?
+      end
+    end
+  end
+end

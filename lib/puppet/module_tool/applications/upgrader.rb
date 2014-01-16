@@ -1,109 +1,212 @@
+require 'pathname'
+
+require 'puppet/forge'
+require 'puppet/module_tool'
+require 'puppet/module_tool/shared_behaviors'
+require 'puppet/module_tool/install_directory'
+require 'puppet/module_tool/installed_modules'
+
 module Puppet::ModuleTool
   module Applications
     class Upgrader < Application
 
       include Puppet::ModuleTool::Errors
 
-      def initialize(name, forge, options)
+      def initialize(name, options)
+        super(options)
+
         @action              = :upgrade
         @environment         = Puppet::Node::Environment.new(Puppet.settings[:environment])
-        @module_name         = name
-        @options             = options
-        @force               = options[:force]
-        @ignore_dependencies = options[:force] || options[:ignore_dependencies]
-        @version             = options[:version]
-        @forge               = forge
+        @name                = name
+        @ignore_dependencies = forced? || options[:ignore_dependencies]
+
+        Semantic::Dependency.add_source(installed_modules_source)
+        Semantic::Dependency.add_source(module_repository)
       end
 
       def run
+        name = @name.tr('/', '-')
+        version = options[:version] || '>= 0'
+
+        results = {
+          :action => :upgrade,
+          :requested_version => options[:version] || :latest,
+        }
+
         begin
-          results = { :module_name => @module_name }
-
-          get_local_constraints
-
-          if @installed[@module_name].length > 1
-            raise MultipleInstalledError,
-              :action            => :upgrade,
-              :module_name       => @module_name,
-              :installed_modules => @installed[@module_name].sort_by { |mod| @environment.modulepath.index(mod.modulepath) }
-          elsif @installed[@module_name].empty?
-            raise NotInstalledError,
-              :action      => :upgrade,
-              :module_name => @module_name
+          if installed_modules_source.fetch(name).empty?
+            raise NotInstalledError, results.merge(:module_name => name)
           end
 
-          @module = @installed[@module_name].last
-          results[:installed_version] = @module.version ? @module.version.sub(/^(?=\d)/, 'v') : nil
-          results[:requested_version] = @version || (@conditions[@module_name].empty? ? :latest : :best)
-          dir = @module.modulepath
+          mod = installed_modules[name].mod
+          results[:installed_version] = Semantic::Version.parse(mod.version)
+          dir = Pathname.new(mod.modulepath)
 
-          Puppet.notice "Found '#{@module_name}' (#{colorize(:cyan, results[:installed_version] || '???')}) in #{dir} ..."
-          if !@options[:force] && @module.has_metadata? && @module.has_local_changes?
-            raise LocalChangesError,
-              :action            => :upgrade,
-              :module_name       => @module_name,
-              :requested_version => @version || (@conditions[@module_name].empty? ? :latest : :best),
-              :installed_version => @module.version
+          vstring = mod.version ? "v#{mod.version}" : '???'
+          Puppet.notice "Found '#{name}' (#{colorize(:cyan, vstring)}) in #{dir} ..."
+          unless forced?
+            if mod.has_metadata? && mod.has_local_changes?
+              raise LocalChangesError,
+                :action            => :upgrade,
+                :module_name       => name,
+                :requested_version => results[:requested_version],
+                :installed_version => mod.version
+            end
           end
 
-          begin
-            get_remote_constraints(@forge)
-          rescue => e
-            raise UnknownModuleError, results.merge(:repository => @forge.uri)
-          else
-            raise UnknownVersionError, results.merge(:repository => @forge.uri) if @remote.empty?
-          end
 
-          if !@options[:force] && @versions["#{@module_name}"].last[:vstring].sub(/^(?=\d)/, 'v') == (@module.version || '0.0.0').sub(/^(?=\d)/, 'v')
-            raise VersionAlreadyInstalledError,
-              :module_name       => @module_name,
-              :requested_version => @version || ((@conditions[@module_name].empty? ? 'latest' : 'best') + ": #{@versions["#{@module_name}"].last[:vstring].sub(/^(?=\d)/, 'v')}"),
-              :installed_version => @installed[@module_name].last.version,
-              :conditions        => @conditions[@module_name] + [{ :module => :you, :version => @version }]
-          end
-
-          @graph = resolve_constraints({ @module_name => @version })
-
-          # This clean call means we never "cache" the module we're installing, but this
-          # is desired since module authors can easily rerelease modules different content but the same
-          # version number, meaning someone with the old content cached will be very confused as to why
-          # they can't get new content.
-          # Long term we should just get rid of this caching behavior and cleanup downloaded modules after they install
-          # but for now this is a quick fix to disable caching
           Puppet::Forge::Cache.clean
-          tarballs = download_tarballs(@graph, @graph.last[:path], @forge)
 
-          unless @graph.empty?
-            Puppet.notice 'Upgrading -- do not interrupt ...'
-            tarballs.each do |hash|
-              hash.each do |dir, path|
-                Unpacker.new(path, @options.merge(:target_dir => dir)).run
+          Puppet.notice "Downloading from #{module_repository.host} ..."
+          if @ignore_dependencies
+            graph = build_single_module_graph(name, version)
+          else
+            graph = build_dependency_graph(name, version)
+          end
+
+          add_module_name_constraints_to_graph(graph)
+          add_pe_constraints_to_graph(graph)
+
+          installed_modules.each do |mod, release|
+            next if mod == name
+
+            version = release.version
+
+            ">=#{version} #{version.major}.x".tap do |constraint|
+              # Since upgrading already installed modules can be troublesome,
+              # we'll place constraints on the graph for each installed module,
+              # locking it to upgrades within the same major version number.
+              graph.add_constraint('installed', mod, constraint) do |node|
+                range = Semantic::VersionRange.parse(constraint)
+                range.include? node.version
+              end
+            end
+
+            unless forced?
+              release.mod.dependencies.each do |dep|
+                dep_name = dep['name'].tr('/', '-')
+                dep['version_requirement'].tap do |constraint|
+                  graph.add_constraint("#{mod}", dep_name, constraint) do |node|
+                    range = Semantic::VersionRange.parse(constraint)
+                    range.include? node.version
+                  end
+                end
               end
             end
           end
 
+          begin
+            Puppet.info "Resolving dependencies ..."
+            releases = Semantic::Dependency.resolve(graph)
+          rescue Semantic::Dependency::UnsatisfiableGraph
+            raise NoVersionsSatisfyError, results.merge(:requested_name => name)
+          end
+
+          child = releases.find { |x| x.name == name }
+          unless forced?
+            if child.version <= results[:installed_version]
+              versions = graph.dependencies[name].map { |r| r.version }
+              newer_versions = versions.select { |v| v > results[:installed_version] }
+
+              raise VersionAlreadyInstalledError,
+                :module_name       => name,
+                :requested_version => results[:requested_version],
+                :installed_version => results[:installed_version],
+                :newer_versions    => newer_versions,
+                :possible_culprits => installed_modules_source.fetched.reject { |x| x == name }
+            end
+          end
+
+          Puppet.info "Preparing to upgrade ..."
+          releases.each { |release| release.prepare }
+
+          Puppet.notice 'Upgrading -- do not interrupt ...'
+          releases.each do |release|
+            if installed = installed_modules[release.name]
+              release.install(Pathname.new(installed.mod.modulepath))
+            else
+              release.install(dir)
+            end
+          end
+
           results[:result] = :success
-          results[:base_dir] = @graph.first[:path]
-          results[:affected_modules] = @graph
+          results[:base_dir] = releases.first.install_dir
+          results[:affected_modules] = releases
+          results[:graph] = [ build_install_graph(releases.first, releases) ]
+
         rescue VersionAlreadyInstalledError => e
-          results[:result] = :noop
-          results[:error] = {
-            :oneline   => e.message,
-            :multiline => e.multiline
-          }
+          results[:result] = (e.newer_versions.empty? ? :noop : :failure)
+          results[:error] = { :oneline => e.message, :multiline => e.multiline }
         rescue => e
           results[:error] = {
-            :oneline => e.message,
+            :oneline   => e.message,
             :multiline => e.respond_to?(:multiline) ? e.multiline : [e.to_s, e.backtrace].join("\n")
           }
         ensure
           results[:result] ||= :failure
         end
 
-        return results
+        results
       end
 
       private
+      def module_repository
+        @repo ||= Puppet::Forge.new
+      end
+
+      def installed_modules_source
+        @installed ||= Puppet::ModuleTool::InstalledModules.new
+      end
+
+      def installed_modules
+        installed_modules_source.modules
+      end
+
+      def build_single_module_graph(name, version)
+        range = Semantic::VersionRange.parse(version)
+        graph = Semantic::Dependency::Graph.new(name => range)
+        releases = Semantic::Dependency.fetch_releases(name)
+        releases.each { |release| release.dependencies.clear }
+        graph << releases
+      end
+
+      def build_dependency_graph(name, version)
+        Semantic::Dependency.query(name => version)
+      end
+
+      def build_install_graph(release, installed, graphed = [])
+        previous = installed_modules[release.name]
+        previous = previous.version if previous
+
+        action = :upgrade
+        unless previous && previous != release.version
+          action = :install
+        end
+
+        graphed << release
+
+        dependencies = release.dependencies.values.map do |deps|
+          dep = (deps & installed).first
+          if dep == installed_modules[dep.name]
+            next
+          end
+
+          if dep && !graphed.include?(dep)
+            build_install_graph(dep, installed, graphed)
+          end
+        end.compact
+
+        return {
+          :release          => release,
+          :name             => release.name,
+          :path             => release.install_dir,
+          :dependencies     => dependencies.compact,
+          :version          => release.version,
+          :previous_version => previous,
+          :action           => action,
+        }
+      end
+
       include Puppet::ModuleTool::Shared
     end
   end
