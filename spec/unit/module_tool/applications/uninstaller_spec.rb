@@ -8,13 +8,20 @@ describe Puppet::ModuleTool::Applications::Uninstaller do
   include PuppetSpec::ModuleTool::SharedFunctions
   include PuppetSpec::Files
 
+  before(:all) do
+    @old_modulepath_ttl = Puppet::Node::Environment.attr_ttl(:modulepath)
+    Puppet::Node::Environment.set_attr_ttl(:modulepath, 0)
+  end
+
+  after(:all) do
+    Puppet::Node::Environment.set_attr_ttl(:modulepath, @old_modulepath_ttl)
+  end
+
   describe "the behavior of the instances" do
 
     before do
       FileUtils.mkdir_p(primary_dir)
       FileUtils.mkdir_p(secondary_dir)
-      Puppet::Node::Environment.set_attr_ttl(:modulepath, 0)
-      Puppet::Node::Environment.set_attr_ttl(:modules, 0)
       Puppet.settings[:vardir] = vardir
       Puppet.settings[:modulepath] = [ primary_dir, secondary_dir ].join(':')
     end

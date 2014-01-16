@@ -1,6 +1,10 @@
 module PuppetSpec
   module ModuleTool
     class StubSource < Semantic::Dependency::Source
+      def host
+        "http://nowhe.re"
+      end
+
       def fetch(name)
         available_releases[name.tr('/', '-')].values
       end
@@ -9,6 +13,12 @@ module PuppetSpec
         return @available_releases if defined? @available_releases
 
         @available_releases = {
+          'puppetlabs-java' => {
+            '10.0.0' => { 'puppetlabs/stdlib' => '4.1.0' },
+          },
+          'puppetlabs-stdlib' => {
+            '4.1.0' => {},
+          },
           'pmtacceptance-stdlib' => {
             "4.1.0" => {},
             "3.2.0" => {},
