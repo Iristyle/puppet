@@ -7,6 +7,7 @@ require 'semver'
 describe Puppet::ModuleTool::Applications::Installer, :unless => Puppet.features.microsoft_windows? do
   include PuppetSpec::ModuleTool::SharedFunctions
   include PuppetSpec::Files
+  include PuppetSpec::Fixtures
 
   before(:all) do
     @old_modulepath_ttl = Puppet::Node::Environment.attr_ttl(:modulepath)
@@ -36,11 +37,14 @@ describe Puppet::ModuleTool::Applications::Installer, :unless => Puppet.features
     end
   end
 
+  before do
+    Semantic::Dependency.clear_sources
+    installer = Puppet::ModuleTool::Applications::Installer.any_instance
+    installer.stubs(:module_repository).returns(remote_source)
+  end
+
   def installer(*args)
-    Puppet::ModuleTool::Applications::Installer.new(*args).tap do
-      Semantic::Dependency.clear_sources
-      Semantic::Dependency.add_source(remote_source)
-    end
+    Puppet::ModuleTool::Applications::Installer.new(*args)
   end
 
   context '#run' do
@@ -56,6 +60,50 @@ describe Puppet::ModuleTool::Applications::Installer, :unless => Puppet.features
     it 'installs the specified module' do
       subject.should include :result => :success
       graph_should_include 'pmtacceptance-stdlib', nil => v('4.1.0')
+    end
+
+    context 'with a tarball file' do
+      let(:module) { fixtures('stdlib.tgz') }
+
+      it 'installs the specified tarball' do
+        subject.should include :result => :success
+        graph_should_include 'puppetlabs-stdlib', nil => v('3.2.0')
+      end
+
+      context 'with --ignore-dependencies' do
+        def options
+          super.merge(:ignore_dependencies => true)
+        end
+
+        it 'installs the specified tarball' do
+          remote_source.expects(:fetch).never
+          subject.should include :result => :success
+          graph_should_include 'puppetlabs-stdlib', nil => v('3.2.0')
+        end
+      end
+
+      context 'with dependencies' do
+        let(:module) { fixtures('java.tgz') }
+
+        it 'installs the specified tarball' do
+          subject.should include :result => :success
+          graph_should_include 'puppetlabs-java', nil => v('1.0.0')
+          graph_should_include 'puppetlabs-stdlib', nil => v('4.1.0')
+        end
+
+        context 'with --ignore-dependencies' do
+          def options
+            super.merge(:ignore_dependencies => true)
+          end
+
+          it 'installs the specified tarball without dependencies' do
+            remote_source.expects(:fetch).never
+            subject.should include :result => :success
+            graph_should_include 'puppetlabs-java', nil => v('1.0.0')
+            graph_should_include 'puppetlabs-stdlib', nil
+          end
+        end
+      end
     end
 
     context 'with dependencies' do
