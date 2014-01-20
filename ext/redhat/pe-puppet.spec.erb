@@ -192,6 +192,8 @@ rm -rf %{buildroot}/etc/puppet
 
 %if 0%{?_aix}
 install -d -m0755 %{buildroot}%{_localstatedir}/lib/%{name}
+install -d -m0750 %{buildroot}%{_localstatedir}/lib/%{name}/reports
+
 %else
 install -d -m0755 %{buildroot}%{_localstatedir}/opt/lib/%{name}
 install -d -m0750 %{buildroot}%{_localstatedir}/opt/lib/%{name}/reports
