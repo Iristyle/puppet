@@ -145,13 +145,28 @@ class Puppet::Forge < Semantic::Dependency::Source
     end
 
     def prepare
-      return @unpacked_into if @unpacked_into
+      return @unpacked if @unpacked
 
-      download(@data['file_uri'], tmpfile)
-      validate_checksum(tmpfile, @data['file_md5'])
-      unpack(tmpfile, tmpdir)
+      file = Tempfile.new(name, Puppet::Forge::Cache.base_path, :encoding => 'ascii-8bit')
+      @source.make_http_request(@data['file_uri'], file)
+      file.flush
 
-      @unpacked_into = Pathname.new(tmpdir)
+      # Check that the MD5 of the downloaded file matches what the API provided.
+      if Digest::MD5.hexdigest(file.to_s) != @data['file_md5']
+        raise RuntimeError, "Downloaded release for #{name} did not match expected checksum"
+      end
+
+      file.close
+
+      dir = tmpdir
+
+      begin
+        Puppet::ModuleTool::Applications::Unpacker.unpack(file.path, dir.to_s)
+      rescue Puppet::ExecutionFailure => e
+        raise RuntimeError, "Could not extract contents of module archive: #{e.message}"
+      end
+
+      @unpacked = dir
     end
 
     private
@@ -161,29 +176,7 @@ class Puppet::Forge < Semantic::Dependency::Source
     # @return [Pathname] path to temporary unpacking location
     def tmpdir
       @dir ||= Dir.mktmpdir(name, Puppet::Forge::Cache.base_path)
-    end
-
-    def tmpfile
-      @file ||= Tempfile.new(name, Puppet::Forge::Cache.base_path, :encoding => 'ascii-8bit')
-    end
-
-    def download(uri, destination)
-      @source.make_http_request(uri, destination)
-      destination.flush and destination.close
-    end
-
-    def validate_checksum(file, checksum)
-      if Digest::MD5.file(file.path).hexdigest != checksum
-        raise RuntimeError, "Downloaded release for #{name} did not match expected checksum"
-      end
-    end
-
-    def unpack(file, destination)
-      begin
-        Puppet::ModuleTool::Applications::Unpacker.unpack(file.path, destination)
-      rescue Puppet::ExecutionFailure => e
-        raise RuntimeError, "Could not extract contents of module archive: #{e.message}"
-      end
+      Pathname.new(@dir)
     end
   end
 

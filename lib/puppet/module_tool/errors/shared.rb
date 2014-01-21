@@ -104,21 +104,4 @@ module Puppet::ModuleTool::Errors
       message.join("\n")
     end
   end
-
-  class InvalidModuleError < ModuleToolError
-    def initialize(name, options)
-      @name   = name
-      @action = options[:action]
-      @error  = options[:error]
-      super "Could not #{@action} '#{@name}'; #{@error.message}"
-    end
-
-    def multiline
-      message = []
-      message << "Could not #{@action} module '#{@name}'"
-      message << "  Failure trying to parse metadata"
-      message << "    Original message was: #{@error.message}"
-      message.join("\n")
-    end
-  end
 end

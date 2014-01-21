@@ -7,7 +7,6 @@ require 'puppet/forge'
 require 'puppet/module_tool'
 require 'puppet/module_tool/shared_behaviors'
 require 'puppet/module_tool/install_directory'
-require 'puppet/module_tool/local_tarball'
 require 'puppet/module_tool/installed_modules'
 
 module Puppet::ModuleTool
@@ -26,21 +25,8 @@ module Puppet::ModuleTool
         @name                = name
         @install_dir         = install_dir
 
-        Puppet::Forge::Cache.clean
-
-        @local_tarball = File.exist?(name)
-
-        if @local_tarball
-          Semantic::Dependency.add_source(local_tarball_source)
-          release = local_tarball_source.release
-          @name = release.name
-          options[:version] = release.version.to_s
-        end
-
-        unless @local_tarball && @ignore_dependencies
-          Semantic::Dependency.add_source(installed_modules_source)
-          Semantic::Dependency.add_source(module_repository)
-        end
+        Semantic::Dependency.add_source(installed_modules_source)
+        Semantic::Dependency.add_source(module_repository)
       end
 
       def run
@@ -70,9 +56,9 @@ module Puppet::ModuleTool
           @install_dir.prepare(name, options[:version] || 'latest')
           results[:install_dir] = @install_dir.target
 
-          unless @local_tarball && @ignore_dependencies
-            Puppet.notice "Downloading from #{module_repository.host} ..."
-          end
+          Puppet::Forge::Cache.clean
+
+          Puppet.notice "Downloading from #{module_repository.host} ..."
 
           if @ignore_dependencies
             graph = build_single_module_graph(name, version)
@@ -124,7 +110,7 @@ module Puppet::ModuleTool
             if installed = installed_modules[release.name]
               release.install(Pathname.new(installed.mod.modulepath))
             else
-              release.install(Pathname.new(results[:install_dir]))
+              release.install(results[:install_dir])
             end
           end
 
@@ -148,14 +134,6 @@ module Puppet::ModuleTool
 
       def module_repository
         @repo ||= Puppet::Forge.new
-      end
-
-      def local_tarball_source
-        @tarball_source ||= begin
-          Puppet::ModuleTool::LocalTarball.new(@name)
-        rescue Puppet::Module::Error => e
-          raise InvalidModuleError.new(@name, :action => @action, :error  => e)
-        end
       end
 
       def installed_modules_source
@@ -192,7 +170,7 @@ module Puppet::ModuleTool
         return {
           :release          => release,
           :name             => release.name,
-          :path             => release.install_dir.to_s,
+          :path             => release.install_dir,
           :dependencies     => dependencies.compact,
           :version          => release.version,
           :previous_version => previous,
