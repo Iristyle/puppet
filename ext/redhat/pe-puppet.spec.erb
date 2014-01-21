@@ -193,10 +193,11 @@ rm -rf %{buildroot}/etc/puppet
 %if 0%{?_aix}
 install -d -m0755 %{buildroot}%{_localstatedir}/lib/%{name}
 install -d -m0750 %{buildroot}%{_localstatedir}/lib/%{name}/reports
-
+install -Dp -m0644 %{confdir}/%{name}.conf %{buildroot}%{_sysconfdir}/%{_name}/puppet.conf
 %else
 install -d -m0755 %{buildroot}%{_localstatedir}/opt/lib/%{name}
 install -d -m0750 %{buildroot}%{_localstatedir}/opt/lib/%{name}/reports
+install -Dp -m0644 ext/%{_name}.conf %{buildroot}%{_sysconfdir}/%{_name}/puppet.conf
 %endif
 
 install -d -m0755 %{buildroot}%{_sysconfdir}/%{_name}/manifests
@@ -217,7 +218,6 @@ install -Dp -m0644 %{confdir}/%{name}-logrotate %{buildroot}%{_real_sysconfdir}/
 %endif
 
 install -Dp -m0644 %{confdir}/%{name}-fileserver.conf %{buildroot}%{_sysconfdir}/%{_name}/fileserver.conf
-install -Dp -m0644 %{confdir}/%{name}.conf %{buildroot}%{_sysconfdir}/%{_name}/puppet.conf
 install -Dp -m0644 conf/auth.conf %{buildroot}%{_sysconfdir}/%{_name}/auth.conf
 touch %{buildroot}%{_sysconfdir}/%{_name}/console.conf
 
