@@ -267,7 +267,7 @@ module Semantic
         return other.intersection(self)
       end
 
-      unless include?(other.begin) || other.include?(self.begin)
+      unless cover?(other.begin) || other.cover?(self.begin)
         return EMPTY_RANGE
       end
 

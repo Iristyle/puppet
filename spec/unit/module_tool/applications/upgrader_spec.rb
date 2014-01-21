@@ -21,7 +21,7 @@ describe Puppet::ModuleTool::Applications::Upgrader do
     FileUtils.mkdir_p(primary_dir)
     FileUtils.mkdir_p(secondary_dir)
     Puppet.settings[:vardir] = vardir
-    Puppet.settings[:modulepath] = [ primary_dir, secondary_dir ].join(File::PATH_SEPARATOR)
+    Puppet.settings[:modulepath] = [ primary_dir, secondary_dir ].join(':')
   end
 
   let(:vardir)   { tmpdir('upgrader') }

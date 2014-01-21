@@ -52,7 +52,7 @@ module Puppet::ModuleTool
 
       # @api private
       def module_name
-        metadata = PSON.parse((root_dir + 'metadata.json').read)
+        metadata = PSON.load(root_dir + 'metadata.json')
         name = metadata['name'][/-(.*)/, 1]
       end
 

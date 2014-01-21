@@ -112,7 +112,7 @@ class Puppet::Module
   end
 
   def load_metadata
-    @metadata = data = PSON.parse(File.read(metadata_file))
+    @metadata = data = PSON.parse File.read(metadata_file)
     @forge_name = data['name'].gsub('-', '/') if data['name']
 
     [:source, :author, :version, :license, :puppetversion, :dependencies].each do |attr|

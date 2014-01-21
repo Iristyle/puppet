@@ -114,8 +114,7 @@ module Semantic
       preferred_releases(deps).reverse_each do |dep|
 
         # We should skip over any releases that violate graph-level constraints.
-        potential_solution = considering.dup << dep
-        unless graph.considering_solution? potential_solution
+        unless graph.considering_solution? [ dep, *considering ]
           next
         end
 
@@ -129,7 +128,7 @@ module Semantic
           # will return a completed dependency list. If there were problems
           # resolving our dependencies, we'll catch `:next`, which will cause
           # us to move to the next possibility.
-          return walk(graph, merged, *potential_solution)
+          return walk(graph, merged, *considering, dep)
         end
       end
 
