@@ -65,7 +65,7 @@ module Puppet::ModuleTool
           end
 
           add_module_name_constraints_to_graph(graph)
-          add_requirements_constraints_to_graph(graph)
+          add_pe_constraints_to_graph(graph)
 
           installed_modules.each do |mod, release|
             next if mod == name

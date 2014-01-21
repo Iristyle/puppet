@@ -81,7 +81,7 @@ module Puppet::ModuleTool
           end
 
           add_module_name_constraints_to_graph(graph)
-          add_requirements_constraints_to_graph(graph)
+          add_pe_constraints_to_graph(graph)
 
           # Since upgrading already installed modules can be troublesome, we'll
           # place constraints on the graph for each installed module, locking
