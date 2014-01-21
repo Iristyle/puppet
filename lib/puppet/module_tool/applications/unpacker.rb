@@ -4,74 +4,56 @@ require 'tmpdir'
 module Puppet::ModuleTool
   module Applications
     class Unpacker < Application
-      def self.unpack(filename, target)
-        app = self.new(filename, :target_dir => target)
-        app.unpack
-        app.root_dir
-        app.move_into(target)
-      end
 
       def initialize(filename, options = {})
         @filename = Pathname.new(filename)
+        parsed = parse_filename(filename)
+        @module_name = parsed[:module_name]
         super(options)
         @module_path = Pathname(options[:target_dir])
+        @module_dir = @module_path + parsed[:dir_name]
       end
 
       def run
-        unpack
-        module_dir = @module_path + module_name
-        move_into(module_dir)
+        extract_module_to_install_dir
 
         # Return the Pathname object representing the directory where the
-        # module release archive was unpacked the to.
-        return module_dir
+        # module release archive was unpacked the to, and the module release
+        # name.
+        @module_dir
       end
 
-      # @api private
-      def unpack
-        begin
-          Puppet::ModuleTool::Tar.instance.unpack(@filename.to_s, tmpdir.to_s, [@module_path.stat.uid, @module_path.stat.gid].join(':'))
-        rescue Puppet::ExecutionFailure => e
-          raise RuntimeError, "Could not extract contents of module archive: #{e.message}"
-        end
-      end
-
-      # @api private
-      def root_dir
-        return @root_dir if @root_dir
-
-        # Grab the first directory containing a metadata.json file
-        metadata_file = Dir["#{tmpdir}/**/metadata.json"].sort_by(&:length)[0]
-
-        if metadata_file
-          @root_dir = Pathname.new(metadata_file).dirname
-        else
-          raise "No valid metadata.json found!"
-        end
-      end
-
-      # @api private
-      def module_name
-        metadata = PSON.load(root_dir + 'metadata.json')
-        name = metadata['name'][/-(.*)/, 1]
-      end
-
-      # @api private
-      def move_into(dir)
-        dir = Pathname.new(dir)
-        dir.rmtree if dir.exist?
-        FileUtils.mv(root_dir, dir)
-      ensure
-        tmpdir.rmtree
-      end
-
-      # Obtain a suitable temporary path for unpacking tarballs
+      # Obtain a suitable temporary path for building and unpacking tarballs
       #
-      # @api private
-      # @return [Pathname] path to temporary unpacking location
-      def tmpdir
-        @dir ||= Dir.mktmpdir('tmp-unpacker', Puppet::Forge::Cache.base_path)
-        Pathname.new(@dir)
+      # @return [Pathname] path to temporary build location
+      def build_dir
+        Puppet::Forge::Cache.base_path + "tmp-unpacker-#{Digest::SHA1.hexdigest(@filename.basename.to_s)}"
+      end
+
+      private
+
+      def extract_module_to_install_dir
+        delete_existing_installation_or_abort!
+
+        build_dir.mkpath
+        begin
+          begin
+            Puppet::ModuleTool::Tar.instance(@module_name).unpack(@filename.to_s, build_dir.to_s, [@module_path.stat.uid, @module_path.stat.gid].join(':'))
+          rescue Puppet::ExecutionFailure => e
+            raise RuntimeError, "Could not extract contents of module archive: #{e.message}"
+          end
+
+          # grab the first directory
+          extracted = build_dir.children.detect { |c| c.directory? }
+          FileUtils.mv extracted, @module_dir
+        ensure
+          build_dir.rmtree
+        end
+      end
+
+      def delete_existing_installation_or_abort!
+        return unless @module_dir.exist?
+        FileUtils.rm_rf(@module_dir, :secure => true)
       end
     end
   end

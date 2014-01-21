@@ -1,7 +1,5 @@
 require 'uri'
 
-require 'puppet/forge'
-
 class Puppet::Forge
   # = Cache
   #
@@ -46,9 +44,7 @@ class Puppet::Forge
 
     # Return the base Pathname for all the caches.
     def self.base_path
-      (Pathname(Puppet.settings[:module_working_dir]) + 'cache').tap do |o|
-        o.mkpath unless o.exist?
-      end
+      Pathname(Puppet.settings[:module_working_dir]) + 'cache'
     end
 
     # Clean out all the caches.

@@ -47,7 +47,7 @@ describe "puppet module install" do
       options[:force] = true
       expected_options.merge!(options)
 
-      expects_installer_run_with("puppetlabs-apache", expected_options.merge(:force => true))
+      expects_installer_run_with("puppetlabs-apache", expected_options)
 
       subject.install("puppetlabs-apache", options)
     end
@@ -184,12 +184,12 @@ describe "puppet module install" do
     install_dir = mock("InstallDir")
     forge = mock("Forge")
 
-    Puppet::Forge.stubs(:new).with("PMT", subject.version).returns(forge)
+    Puppet::Forge.expects(:new).with("PMT", subject.version).returns(forge)
     Puppet::ModuleTool::InstallDirectory.expects(:new).
-      with(Pathname.new(options[:target_dir])).
+      with(Pathname.new(expected_options[:target_dir])).
       returns(install_dir)
     Puppet::ModuleTool::Applications::Installer.expects(:new).
-      with("puppetlabs-apache", install_dir, options).
+      with("puppetlabs-apache", forge, install_dir, expected_options).
       returns(installer)
     installer.expects(:run)
   end
