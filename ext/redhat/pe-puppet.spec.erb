@@ -340,10 +340,8 @@ ln -sf %{_prefix}/bin/puppet %{buildroot}%{_symlinkdir}/puppet
 %{_localstatedir}/log/%{name}
 %if 0%{?_aix}
 %{_localstatedir}/lib/%{name}
-%{_localstatedir}/lib/%{name}/reports
 %else
 %{_localstatedir}/opt/lib/%{name}
-%{_localstatedir}/opt/lib/%{name}/reports
 %endif
 
 %if 0%{?build_server}
