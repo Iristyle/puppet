@@ -1,5 +1,5 @@
 debian/conf/pe-puppet                      etc/logrotate.d
-debian/conf/puppet.conf                               etc/puppetlabs/puppet
+ext/puppet.conf                               etc/puppetlabs/puppet
 opt/puppet/bin/extlookup2hiera
 opt/puppet/bin/puppet
 opt/puppet/lib/ruby/site_ruby/1.9.1/*
