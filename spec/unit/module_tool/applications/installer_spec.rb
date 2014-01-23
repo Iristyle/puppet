@@ -205,6 +205,58 @@ describe Puppet::ModuleTool::Applications::Installer do
       end
     end
 
+    context 'when depended upon' do
+      before { preinstall('pmtacceptance-keystone', '2.1.0') }
+      let(:module)  { 'pmtacceptance-mysql' }
+
+      it 'installs an appropriate release' do
+        subject.should include :result => :success
+        graph_should_include 'pmtacceptance-mysql', nil => v('0.9.0')
+      end
+
+      context 'with a --version that can satisfy' do
+        def options
+          super.merge(:version => '0.8.0')
+        end
+
+        it 'installs a matching release' do
+          subject.should include :result => :success
+          graph_should_include 'pmtacceptance-mysql', nil => v('0.8.0')
+        end
+      end
+
+      context 'with a --version that cannot satisfy' do
+        def options
+          super.merge(:version => '> 1.0.0')
+        end
+
+        it 'fails to install' do
+          subject.should include :result => :failure
+        end
+
+        context 'with --ignore-dependencies' do
+          def options
+            super.merge(:ignore_dependencies => true)
+          end
+
+          it 'fails to install' do
+            subject.should include :result => :failure
+          end
+        end
+
+        context 'with --force' do
+          def options
+            super.merge(:force => true)
+          end
+
+          it 'installs an appropriate version' do
+            subject.should include :result => :success
+            graph_should_include 'pmtacceptance-mysql', nil => v('2.1.0')
+          end
+        end
+      end
+    end
+
     context 'when already installed' do
       before { preinstall('pmtacceptance-stdlib', '1.0.0') }
 
