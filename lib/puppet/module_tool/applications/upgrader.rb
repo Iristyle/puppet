@@ -102,6 +102,26 @@ module Puppet::ModuleTool
             raise NoVersionsSatisfyError, results.merge(:requested_name => name)
           end
 
+          releases.each do |rel|
+            if mod = installed_modules_source.by_name[rel.name.split('-').last]
+              next if mod.has_metadata? && mod.forge_name.tr('/', '-') == rel.name
+
+              if rel.name != name
+                dependency = {
+                  :name => rel.name,
+                  :version => rel.version
+                }
+              end
+
+              raise InstallConflictError,
+                :requested_module  => name,
+                :requested_version => options[:version] || 'latest',
+                :dependency        => dependency,
+                :directory         => mod.path,
+                :metadata          => mod.metadata
+            end
+          end
+
           child = releases.find { |x| x.name == name }
           unless forced?
             if child.version <= results[:installed_version]
