@@ -130,7 +130,7 @@ Puppet::Face.define(:module, '1.0.0') do
 
     when_rendering :console do |return_value, name, options|
       if return_value[:result] == :noop
-        Puppet.notice "Module #{name} #{mod.version} is already installed."
+        Puppet.notice "Module #{name} #{return_value[:version]} is already installed."
         exit 0
       elsif return_value[:result] == :failure
         Puppet.err(return_value[:error][:multiline])
