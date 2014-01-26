@@ -201,13 +201,13 @@ module Puppet::ModuleTool
       end
 
       def build_install_graph(release, installed, graphed = [])
+        graphed << release
         dependencies = release.dependencies.values.map do |deps|
           dep = (deps & installed).first
           unless dep.nil? || graphed.include?(dep)
             build_install_graph(dep, installed, graphed)
           end
         end
-        graphed << release
 
         previous = installed_modules[release.name]
         previous = previous.version if previous
