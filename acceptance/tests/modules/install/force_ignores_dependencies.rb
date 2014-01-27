@@ -3,7 +3,7 @@ require 'puppet/acceptance/module_utils'
 extend Puppet::Acceptance::ModuleUtils
 
 module_author = "pmtacceptance"
-module_name   = "php"
+module_name   = "git"
 module_dependencies   = ["apache"]
 
 orig_installed_modules = get_installed_modules_for_hosts hosts
