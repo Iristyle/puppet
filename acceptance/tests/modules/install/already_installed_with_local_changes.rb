@@ -27,7 +27,7 @@ step "Install module" do
 end
 
 step "Make local changes in installed module" do
-  on master, "echo 'changed' >> #{module_path}/README", :acceptable_exit_codes => [0]
+  on master, "echo 'changed' >> #{module_path}/README"
 end
 
 # FIXME PF-353
