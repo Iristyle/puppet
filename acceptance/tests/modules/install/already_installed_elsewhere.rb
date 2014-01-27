@@ -4,6 +4,7 @@ extend Puppet::Acceptance::ModuleUtils
 
 module_author = "pmtacceptance"
 module_name   = "nginx"
+module_reference = "#{module_author}-#{module_name}"
 module_dependencies = []
 
 orig_installed_modules = get_installed_modules_for_hosts hosts

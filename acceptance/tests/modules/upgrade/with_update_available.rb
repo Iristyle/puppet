@@ -7,7 +7,7 @@ on master, "mkdir -p #{master['distmoduledir']}"
 
 teardown do
   on master, "rm -rf #{master['distmoduledir']}/java"
-  on master, "rm -rf #{master['distmoduledir']}/stdlib"
+  on master, "rm -rf #{master['distmoduledir']}/stdlub"
 end
 
 on master, puppet("module install pmtacceptance-java --version 1.6.0")
@@ -15,7 +15,7 @@ on master, puppet("module list --modulepath #{master['distmoduledir']}") do
   assert_output <<-OUTPUT
     #{master['distmoduledir']}
     ├── pmtacceptance-java (\e[0;36mv1.6.0\e[0m)
-    └── pmtacceptance-stdlib (\e[0;36mv1.0.0\e[0m)
+    └── pmtacceptance-stdlub (\e[0;36mv1.0.0\e[0m)
   OUTPUT
 end
 

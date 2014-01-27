@@ -7,7 +7,7 @@ stub_forge_on(master)
 
 teardown do
   on master, "rm -rf #{master['distmoduledir']}/java"
-  on master, "rm -rf #{master['distmoduledir']}/stdlib"
+  on master, "rm -rf #{master['distmoduledir']}/stdlub"
 end
 
 on master, "mkdir -p #{testdir}/modules"
@@ -26,7 +26,7 @@ with_puppet_running_on master, master_opts, testdir do
     assert_output <<-OUTPUT
       #{master['distmoduledir']}
       ├── pmtacceptance-java (\e[0;36mv1.6.0\e[0m)
-      └── pmtacceptance-stdlib (\e[0;36mv1.0.0\e[0m)
+      └── pmtacceptance-stdlub (\e[0;36mv1.0.0\e[0m)
     OUTPUT
   end
 
@@ -34,7 +34,7 @@ with_puppet_running_on master, master_opts, testdir do
     assert_output <<-OUTPUT
       #{testdir}/modules
       ├── pmtacceptance-java (\e[0;36mv1.7.0\e[0m)
-      └── pmtacceptance-stdlib (\e[0;36mv1.0.0\e[0m)
+      └── pmtacceptance-stdlub (\e[0;36mv1.0.0\e[0m)
     OUTPUT
   end
 

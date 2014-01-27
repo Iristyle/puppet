@@ -7,7 +7,7 @@ stub_forge_on(master)
 teardown do
   on master, "rm -rf #{master['distmoduledir']}/java"
   on master, "rm -rf #{master['distmoduledir']}/unicorns"
-  on master, "rm -rf #{master['distmoduledir']}/stdlib"
+  on master, "rm -rf #{master['distmoduledir']}/stdlub"
   on master, "rm -rf #{master['distmoduledir']}/nginx"
 end
 
@@ -37,7 +37,7 @@ on master, puppet("module list --modulepath #{master['distmoduledir']}") do
     ├── nginx (\e[0;36m???\e[0m)
     ├── notpmtacceptance-unicorns (\e[0;36mv0.0.3\e[0m)
     ├── pmtacceptance-java (\e[0;36mv1.6.0\e[0m)
-    └── pmtacceptance-stdlib (\e[0;36mv1.0.0\e[0m)
+    └── pmtacceptance-stdlub (\e[0;36mv1.0.0\e[0m)
   OUTPUT
 end
 

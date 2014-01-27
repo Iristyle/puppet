@@ -7,9 +7,9 @@ testdir = master.tmpdir('upgrademultimods')
 
 teardown do
   on master, "rm -rf #{master['distmoduledir']}/java"
-  on master, "rm -rf #{master['distmoduledir']}/stdlib"
+  on master, "rm -rf #{master['distmoduledir']}/stdlub"
   on master, "rm -rf #{testdir}/modules/java"
-  on master, "rm -rf #{testdir}/modules/stdlib"
+  on master, "rm -rf #{testdir}/modules/stdlub"
 end
 
 master_opts = {
@@ -25,10 +25,10 @@ with_puppet_running_on master, master_opts, testdir do
     assert_output <<-OUTPUT
       #{master['distmoduledir']}
       ├── pmtacceptance-java (\e[0;36mv1.6.0\e[0m)
-      └── pmtacceptance-stdlib (\e[0;36mv1.0.0\e[0m)
+      └── pmtacceptance-stdlub (\e[0;36mv1.0.0\e[0m)
       #{testdir}/modules
       ├── pmtacceptance-java (\e[0;36mv1.7.0\e[0m)
-      └── pmtacceptance-stdlib (\e[0;36mv1.0.0\e[0m)
+      └── pmtacceptance-stdlub (\e[0;36mv1.0.0\e[0m)
     OUTPUT
   end
 
