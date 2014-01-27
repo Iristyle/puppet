@@ -35,6 +35,8 @@ end
 
 step "Try to install a specific version of a module that is already installed" do
   on master, puppet("module install #{module_reference} --version 1.x"), :acceptable_exit_codes => [1] do
+    assert_match(/Could not install module '#{module_reference}' \(v1.x\)/, stderr,
+          "Error that specified module version could not be installed was not displayed")
     assert_match(/#{module_reference}.*is already installed/, stderr,
           "Error that module was already installed was not displayed")
   end
