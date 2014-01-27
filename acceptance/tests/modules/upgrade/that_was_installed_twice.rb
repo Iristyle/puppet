@@ -32,17 +32,18 @@ with_puppet_running_on master, master_opts, testdir do
     OUTPUT
   end
 
-  step "Try to upgrade a module that exists multiple locations in the module path"
-  on master, puppet("module upgrade pmtacceptance-java"), :acceptable_exit_codes => [1] do
-    assert_output <<-OUTPUT
-      STDOUT> \e[mNotice: Preparing to upgrade 'pmtacceptance-java' ...\e[0m
-      STDERR> \e[1;31mError: Could not upgrade module 'pmtacceptance-java'
-      STDERR>   Module 'pmtacceptance-java' appears multiple places in the module path
-      STDERR>     'pmtacceptance-java' (v1.6.0) was found in #{master['distmoduledir']}
-      STDERR>     'pmtacceptance-java' (v1.7.0) was found in #{testdir}/modules
-      STDERR>     Use the `--modulepath` option to limit the search to specific directories\e[0m
-    OUTPUT
-  end
+  # FIXME PF-358
+  #step "Try to upgrade a module that exists multiple locations in the module path"
+  #on master, puppet("module upgrade pmtacceptance-java"), :acceptable_exit_codes => [1] do
+  #  assert_output <<-OUTPUT
+  #    STDOUT> \e[mNotice: Preparing to upgrade 'pmtacceptance-java' ...\e[0m
+  #    STDERR> \e[1;31mError: Could not upgrade module 'pmtacceptance-java'
+  #    STDERR>   Module 'pmtacceptance-java' appears multiple places in the module path
+  #    STDERR>     'pmtacceptance-java' (v1.6.0) was found in #{master['distmoduledir']}
+  #    STDERR>     'pmtacceptance-java' (v1.7.0) was found in #{testdir}/modules
+  #    STDERR>     Use the `--modulepath` option to limit the search to specific directories\e[0m
+  #  OUTPUT
+  #end
 
   step "Upgrade a module that exists multiple locations by restricting the --modulepath"
   on master, puppet("module upgrade pmtacceptance-java --modulepath #{master['distmoduledir']}") do
