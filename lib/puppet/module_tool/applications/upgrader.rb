@@ -95,6 +95,12 @@ module Puppet::ModuleTool
             end
           end
 
+          # Ensure that there is at least one candidate release available
+          # for the target package.
+          if graph.dependencies[name].all? { |r| r == installed_modules[name] }
+            raise NoCandidateReleasesError, results.merge(:module_name => name, :source => module_repository.host)
+          end
+
           begin
             Puppet.info "Resolving dependencies ..."
             releases = Semantic::Dependency.resolve(graph)
@@ -123,6 +129,7 @@ module Puppet::ModuleTool
           end
 
           child = releases.find { |x| x.name == name }
+
           unless forced?
             if child.version <= results[:installed_version]
               versions = graph.dependencies[name].map { |r| r.version }

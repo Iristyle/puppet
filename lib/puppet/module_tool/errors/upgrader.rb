@@ -40,4 +40,22 @@ module Puppet::ModuleTool::Errors
       message.join("\n")
     end
   end
+
+  class NoCandidateReleasesError < UpgradeError
+    def initialize(options)
+      @module_name       = options[:module_name]
+      @requested_version = options[:requested_version]
+      @installed_version = options[:installed_version]
+      @source            = options[:source]
+      super "Could not upgrade '#{@module_name}'; no releases are available from #{@source}"
+    end
+
+    def multiline
+      message = []
+      message << "Could not upgrade '#{@module_name}' (#{vstring})"
+      message << "  No releases are available from #{@source}"
+      message << "    Does '#{@module_name}' have at least one published release?"
+      message.join("\n")
+    end
+  end
 end
