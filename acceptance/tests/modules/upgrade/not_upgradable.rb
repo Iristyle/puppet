@@ -74,7 +74,7 @@ end
 
 step "Try to upgrade an installed module to a version that doesn't exist in module_repository"
 on master, puppet("module upgrade pmtacceptance-java --version 2.0.0"), :acceptable_exit_codes => [1] do
-  assert_match(/could not upgrade 'notpmtacceptance-unicorns'/i, stderr,
+  assert_match(/could not upgrade 'pmtacceptance-java'/i, stderr,
     'Could not upgrade error not shown')
 
   assert_match(/no releases matching '2.0.0' are available from/i, stderr,
