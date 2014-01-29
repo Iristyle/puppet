@@ -111,6 +111,12 @@ module Puppet::ModuleTool
             end
           end
 
+          # Ensure that there is at least one candidate release available
+          # for the target package.
+          if graph.dependencies[name].size < 1
+            raise MissingPackageError, results.merge(:requested_package => name, :source => module_repository.host)
+          end
+
           begin
             Puppet.info "Resolving dependencies ..."
             releases = Semantic::Dependency.resolve(graph)

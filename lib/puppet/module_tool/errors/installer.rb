@@ -25,14 +25,19 @@ module Puppet::ModuleTool::Errors
   class MissingPackageError < InstallError
     def initialize(options)
       @requested_package = options[:requested_package]
-      super "#{@requested_package} requested; Package #{@requested_package} does not exist"
+      @source = options[:source]
+
+      super "Could not install '#{@requested_package}'; no releases are available from #{@source}"
     end
 
     def multiline
-      <<-MSG.strip
-Could not install package #{@requested_package}
-  Package #{@requested_package} does not exist
-      MSG
+      message = []
+      message << "Could not install '#{@requested_package}'"
+
+      message << "  No releases are available from #{@source}"
+      message << "    Does '#{@requested_package}' have at least one published release?"
+
+      message.join("\n")
     end
   end
 
