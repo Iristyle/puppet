@@ -47,14 +47,25 @@ module Puppet::ModuleTool::Errors
       @requested_version = options[:requested_version]
       @installed_version = options[:installed_version]
       @source            = options[:source]
-      super "Could not upgrade '#{@module_name}'; no releases are available from #{@source}"
+
+      if @requested_version == :latest
+        super "Could not upgrade '#{@module_name}'; no releases are available from #{@source}"
+      else
+        super "Could not upgrade '#{@module_name}'; no releases matching '#{@requested_version}' are available from #{@source}"
+      end
     end
 
     def multiline
       message = []
       message << "Could not upgrade '#{@module_name}' (#{vstring})"
-      message << "  No releases are available from #{@source}"
-      message << "    Does '#{@module_name}' have at least one published release?"
+
+      if @requested_version == :latest
+        message << "  No releases are available from #{@source}"
+        message << "    Does '#{@module_name}' have at least one published release?"
+      else
+        message << "  No releases matching '#{@requested_version}' are available from #{@source}"
+      end
+
       message.join("\n")
     end
   end

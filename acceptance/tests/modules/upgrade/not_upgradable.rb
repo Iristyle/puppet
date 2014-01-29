@@ -65,21 +65,18 @@ end
 
 step "Try to upgrade a module that doesn't exist in module_repository"
 on master, puppet("module upgrade notpmtacceptance-unicorns"), :acceptable_exit_codes => [1] do
-  assert_match(/Could not upgrade 'notpmtacceptance-unicorns'/, stderr,
+  assert_match(/could not upgrade 'notpmtacceptance-unicorns'/i, stderr,
     'Could not upgrade error not shown')
 
-  assert_match(/No releases are available from/, stderr,
+  assert_match(/no releases are available from/i, stderr,
     'Upgrade failure reason not shown')
 end
 
-# FIXME PF-364 (unable to resolve top of graph)
-#step "Try to upgrade an installed module to a version that doesn't exist"
-#on master, puppet("module upgrade pmtacceptance-java --version 2.0.0"), :acceptable_exit_codes => [1] do
-#  assert_output <<-OUTPUT
-#    STDOUT> \e[mNotice: Preparing to upgrade 'pmtacceptance-java' ...\e[0m
-#    STDOUT> \e[mNotice: Found 'pmtacceptance-java' (\e[0;36mv1.6.0\e[m) in #{master['distmoduledir']} ...\e[0m
-#    STDOUT> \e[mNotice: Downloading from https://forgeapi.puppetlabs.com ...\e[0m
-#    STDERR> \e[1;31mError: Could not upgrade module 'pmtacceptance-java' (v1.6.0 -> v2.0.0)
-#    STDERR>   No version matching '2.0.0' exists on https://forgeapi.puppetlabs.com\e[0m
-#  OUTPUT
-#end
+step "Try to upgrade an installed module to a version that doesn't exist in module_repository"
+on master, puppet("module upgrade pmtacceptance-java --version 2.0.0"), :acceptable_exit_codes => [1] do
+  assert_match(/could not upgrade 'notpmtacceptance-unicorns'/i, stderr,
+    'Could not upgrade error not shown')
+
+  assert_match(/no releases matching '2.0.0' are available from/i, stderr,
+    'Upgrade failure reason not shown')
+end
