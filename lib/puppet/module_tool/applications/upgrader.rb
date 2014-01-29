@@ -36,6 +36,8 @@ module Puppet::ModuleTool
         begin
           if installed_modules_source.fetch(name).empty?
             raise NotInstalledError, results.merge(:module_name => name)
+          elsif Puppet::Node::Environment.current.modules.select { |x| x.name.tr('/', '-') == name }.length > 1
+            raise MultipleInstalledError, results.merge(:module_name => name)
           end
 
           mod = installed_modules[name].mod
