@@ -154,10 +154,11 @@ module Puppet::ModuleTool
 
           Puppet.notice 'Installing -- do not interrupt ...'
           releases.each do |release|
-            if installed = installed_modules[release.name]
-              release.install(Pathname.new(installed.mod.modulepath))
-            else
+            installed = installed_modules[release.name]
+            if forced? || installed.nil?
               release.install(Pathname.new(results[:install_dir]))
+            else
+              release.install(Pathname.new(installed.mod.modulepath))
             end
           end
 
