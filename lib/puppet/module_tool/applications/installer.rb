@@ -230,7 +230,7 @@ module Puppet::ModuleTool
           :dependencies     => dependencies.compact,
           :version          => release.version,
           :previous_version => previous,
-          :action           => (previous && previous != release.version ? :upgrade : :install),
+          :action           => (previous.nil? || previous == release.version || forced? ? :install : :upgrade),
         }
       end
 
