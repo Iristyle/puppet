@@ -57,6 +57,12 @@ class Puppet::Forge
         "User-Agent" => user_agent,
       }
 
+      if Puppet.features.zlib? && Puppet[:zlib]
+        headers = headers.merge({
+          "Accept-Encoding" => "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+        })
+      end
+
       request = Net::HTTP::Get.new(URI.escape(path), headers)
 
       unless @uri.user.nil? || @uri.password.nil?
@@ -79,6 +85,20 @@ class Puppet::Forge
 
       http_object.start do |http|
         response = http.request(request)
+
+        if Puppet.features.zlib? && Puppet[:zlib]
+          if response && response.key?("content-encoding")
+            case response["content-encoding"]
+            when "gzip"
+              response.body = Zlib::GzipReader.new(StringIO.new(response.read_body), encoding: "ASCII-8BIT").read
+              response.delete("content-encoding")
+            when "deflate"
+              response.body = Zlib::Inflate.inflate(response.read_body)
+              response.delete("content-encoding")
+            end
+          end
+        end
+
         io.write(response.body) if io.respond_to? :write
         response
       end

@@ -21,6 +21,42 @@ module Puppet::ModuleTool::Errors
     end
   end
 
+  class InstallConflictError < ModuleToolError
+    def initialize(options)
+      @requested_module  = options[:requested_module]
+      @requested_version = v(options[:requested_version])
+      @dependency        = options[:dependency]
+      @directory         = options[:directory]
+      @metadata          = options[:metadata]
+      super "'#{@requested_module}' (#{@requested_version}) requested; installation conflict"
+    end
+
+    def multiline
+      message = []
+      message << "Could not install module '#{@requested_module}' (#{@requested_version})"
+
+      if @dependency
+        message << "  Dependency '#{@dependency[:name]}' (#{v(@dependency[:version])}) would overwrite #{@directory}"
+      else
+        message << "  Installation would overwrite #{@directory}"
+      end
+
+      if @metadata
+        message << "    Currently, '#{@metadata["name"]}' (#{v(@metadata["version"])}) is installed to that directory"
+      end
+
+      message << "    Use `puppet module install --target-dir <DIR>` to install modules elsewhere"
+
+      if @dependency
+        message << "    Use `puppet module install --ignore-dependencies` to install only this module"
+      else
+        message << "    Use `puppet module install --force` to install this module anyway"
+      end
+
+      message.join("\n")
+    end
+  end
+
   class InvalidDependencyCycleError < ModuleToolError
     def initialize(options)
       @module_name       = options[:module_name]

@@ -6,7 +6,7 @@ describe Puppet::ModuleTool::Applications::Searcher do
   include PuppetSpec::Files
 
   describe "when searching" do
-    let(:forge) { mock 'forge', :uri => 'http://nowhe.re' }
+    let(:forge) { mock 'forge', :host => 'http://nowhe.re' }
     let(:searcher) do
       described_class.new('search_term', forge)
     end

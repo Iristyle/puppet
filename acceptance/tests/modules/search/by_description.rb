@@ -14,7 +14,7 @@ on master, puppet("module search dummy") do
 # pmtacceptance-thin    This is a dummy thin mod...  @pmtacceptance  ruby thin
 # pmtacceptance-apollo  This is a dummy apollo m...  @pmtacceptance  stomp apollo
 # pmtacceptance-java    This is a dummy java mod...  @pmtacceptance  java
-# pmtacceptance-stdlib  This is a dummy stdlib m...  @pmtacceptance  stdlib libs
+# pmtacceptance-stdlub  This is a dummy stdlub m...  @pmtacceptance  stdlub libs
 # pmtacceptance-git     This is a dummy git modu...  @pmtacceptance  git dvcs
 # pmtacceptance-apache  This is a dummy apache m...  @pmtacceptance  apache php
 # pmtacceptance-php     This is a dummy php modu...  @pmtacceptance  apache php

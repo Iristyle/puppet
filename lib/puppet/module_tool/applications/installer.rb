@@ -47,7 +47,7 @@ module Puppet::ModuleTool
         name = @name.tr('/', '-')
         version = options[:version] || '>= 0'
 
-        results = { :name => name, :version => version }
+        results = { :action => :install, :name => name, :version => version }
 
         begin
           unless forced?
@@ -83,27 +83,29 @@ module Puppet::ModuleTool
           add_module_name_constraints_to_graph(graph)
           add_requirements_constraints_to_graph(graph)
 
-          # Since upgrading already installed modules can be troublesome, we'll
-          # place constraints on the graph for each installed module, locking
-          # it to upgrades within the same major version number.
           installed_modules.each do |mod, release|
             mod = mod.tr('/', '-')
             next if mod == name
 
-            ">=#{release.version} #{release.version.major}.x".tap do |constraint|
-              graph.add_constraint('installed', mod, constraint) do |node|
-                range = Semantic::VersionRange.parse(constraint)
-                range.include? node.version
+            version = release.version
+
+            unless forced?
+              # Since upgrading already installed modules can be troublesome,
+              # we'll place constraints on the graph for each installed module,
+              # locking it to upgrades within the same major version.
+              ">=#{version} #{version.major}.x".tap do |range|
+                graph.add_constraint('installed', mod, range) do |node|
+                  Semantic::VersionRange.parse(range).include? node.version
+                end
               end
-            end
 
-            release.mod.dependencies.each do |dep|
-              dep_name = dep['name'].tr('/', '-')
+              release.mod.dependencies.each do |dep|
+                dep_name = dep['name'].tr('/', '-')
 
-              dep['version_requirement'].tap do |constraint|
-                graph.add_constraint("#{mod} constraint", dep_name, constraint) do |node|
-                  range = Semantic::VersionRange.parse(constraint)
-                  range.include? node.version
+                dep['version_requirement'].tap do |range|
+                  graph.add_constraint("#{mod} constraint", dep_name, range) do |node|
+                    Semantic::VersionRange.parse(range).include? node.version
+                  end
                 end
               end
             end
@@ -114,6 +116,29 @@ module Puppet::ModuleTool
             releases = Semantic::Dependency.resolve(graph)
           rescue Semantic::Dependency::UnsatisfiableGraph
             raise NoVersionsSatisfyError, results.merge(:requested_name => name)
+          end
+
+          unless forced?
+            # Check for module name conflicts.
+            releases.each do |rel|
+              if mod = installed_modules_source.by_name[rel.name.split('-').last]
+                next if mod.has_metadata? && mod.forge_name.tr('/', '-') == rel.name
+
+                if rel.name != name
+                  dependency = {
+                    :name => rel.name,
+                    :version => rel.version
+                  }
+                end
+
+                raise InstallConflictError,
+                  :requested_module  => name,
+                  :requested_version => options[:version] || 'latest',
+                  :dependency        => dependency,
+                  :directory         => mod.path,
+                  :metadata          => mod.metadata
+              end
+            end
           end
 
           Puppet.info "Preparing to install ..."
@@ -179,13 +204,13 @@ module Puppet::ModuleTool
       end
 
       def build_install_graph(release, installed, graphed = [])
+        graphed << release
         dependencies = release.dependencies.values.map do |deps|
           dep = (deps & installed).first
           unless dep.nil? || graphed.include?(dep)
             build_install_graph(dep, installed, graphed)
           end
         end
-        graphed << release
 
         previous = installed_modules[release.name]
         previous = previous.version if previous

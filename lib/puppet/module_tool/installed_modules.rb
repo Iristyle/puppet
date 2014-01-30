@@ -5,7 +5,7 @@ require 'puppet/module_tool'
 
 module Puppet::ModuleTool
   class InstalledModules < Semantic::Dependency::Source
-    attr_reader :modules
+    attr_reader :modules, :by_name
 
     def initialize
       env = Puppet::Node::Environment.current
@@ -13,8 +13,11 @@ module Puppet::ModuleTool
 
       @fetched = []
       @modules = {}
+      @by_name = {}
       env.modulepath.each do |path|
         modules[path].each do |mod|
+          @by_name[mod.name] = mod
+          next unless mod.has_metadata?
           release = ModuleRelease.new(self, mod)
           @modules[release.name] ||= release
         end

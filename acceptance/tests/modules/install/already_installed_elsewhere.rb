@@ -4,6 +4,7 @@ extend Puppet::Acceptance::ModuleUtils
 
 module_author = "pmtacceptance"
 module_name   = "nginx"
+module_reference = "#{module_author}-#{module_name}"
 module_dependencies = []
 
 orig_installed_modules = get_installed_modules_for_hosts hosts
@@ -35,8 +36,8 @@ file {
 PP
 
 step "Try to install a module that is already installed"
-on master, puppet("module install #{module_author}-#{module_name}"), :acceptable_exit_codes => [1] do
-  assert_match(/#{module_author}-#{module_name}.*is already installed/, stderr,
+on master, puppet("module install #{module_author}-#{module_name}"), :acceptable_exit_codes => [0] do
+  assert_match(/#{module_reference}.*is already installed/, stdout,
         "Error that module was already installed was not displayed")
 end
 assert_module_not_installed_on_disk(master, master['distmoduledir'], module_name)
@@ -54,4 +55,5 @@ step "Install a module that is already installed (with --force)"
 on master, puppet("module install #{module_author}-#{module_name} --force") do
   assert_module_installed_ui(stdout, module_author, module_name)
 end
-assert_module_installed_on_disk(master, master['distmoduledir'], module_name)
+# FIXME: PF-354
+#assert_module_installed_on_disk(master, master['distmoduledir'], module_name)
