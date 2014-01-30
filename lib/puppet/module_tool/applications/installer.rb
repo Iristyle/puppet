@@ -112,7 +112,7 @@ module Puppet::ModuleTool
           # Ensure that there is at least one candidate release available
           # for the target package.
           if graph.dependencies[name].empty?
-            raise MissingPackageError, results.merge(:requested_package => name, :source => module_repository.host)
+            raise NoCandidateReleasesError, results.merge(:module_name => name, :source => module_repository.host, :requested_version => options[:version] || :latest)
           end
 
           begin
