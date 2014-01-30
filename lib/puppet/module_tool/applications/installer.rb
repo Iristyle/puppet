@@ -47,7 +47,7 @@ module Puppet::ModuleTool
         name = @name.tr('/', '-')
         version = options[:version] || '>= 0'
 
-        results = { :action => :install, :name => name, :version => version }
+        results = { :action => :install, :module_name => name, :module_version => version }
 
         begin
           unless forced?
