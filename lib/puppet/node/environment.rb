@@ -346,13 +346,17 @@ class Puppet::Node::Environment
   def modules_by_path
     modules_by_path = {}
     modulepath.each do |path|
-      Dir.chdir(path) do
-        module_names = Dir.glob('*').select do |d|
-          FileTest.directory?(d) && (File.basename(d) =~ /\A\w+(-\w+)*\Z/)
+      if File.exists?(path)
+        Dir.chdir(path) do
+          module_names = Dir.glob('*').select do |d|
+            FileTest.directory?(d) && (File.basename(d) =~ /\A\w+(-\w+)*\Z/)
+          end
+          modules_by_path[path] = module_names.sort.map do |name|
+            Puppet::Module.new(name, File.join(path, name), self)
+          end
         end
-        modules_by_path[path] = module_names.sort.map do |name|
-          Puppet::Module.new(name, File.join(path, name), self)
-        end
+      else
+        modules_by_path[path] = []
       end
     end
     modules_by_path
@@ -386,23 +390,34 @@ class Puppet::Node::Environment
   # @return [Hash<String, Array<Hash<String, String>>>] See the method example
   #   for an explanation of the return value.
   def module_requirements
-    deps = {}
+    deps = Hash.new do |hash, key|
+      forgish = key.tr('-', '/')
+      dashish = key.tr('/', '-')
+
+      if hash.key? forgish
+        hash[dashish] = hash[forgish]
+      elsif hash.key? dashish
+        hash[forgish] = hash[dashish]
+      else
+        hash[forgish] = hash[dashish] = []
+      end
+    end
+
     modules.each do |mod|
       next unless mod.forge_name
-      deps[mod.forge_name] ||= []
       mod.dependencies and mod.dependencies.each do |mod_dep|
-        deps[mod_dep['name']] ||= []
-        dep_details = {
+        deps[mod_dep['name']] << {
           'name'                => mod.forge_name,
           'version'             => mod.version,
           'version_requirement' => mod_dep['version_requirement']
         }
-        deps[mod_dep['name']] << dep_details
       end
     end
+
     deps.each do |mod, mod_deps|
-      deps[mod] = mod_deps.sort_by {|d| d['name']}
+      deps[mod] = mod_deps.sort_by { |d| d['name'] }
     end
+
     deps
   end
 

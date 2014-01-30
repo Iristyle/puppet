@@ -75,7 +75,7 @@ module Puppet::ModuleTool::Shared
         :queued     => true
       }
 
-      if @force
+      if forced?
         range = SemVer[@version] rescue SemVer['>= 0.0.0']
       else
         range = (@conditions[mod]).map do |r|
@@ -96,7 +96,7 @@ module Puppet::ModuleTool::Shared
           :conditions        => @conditions
       end
 
-      if !(@force || @installed[mod].empty? || source.last[:name] == :you)
+      if !(forced? || @installed[mod].empty? || source.last[:name] == :you)
         next if range === SemVer.new(@installed[mod].first.version)
         action = :upgrade
       elsif @installed[mod].empty?
@@ -159,5 +159,35 @@ module Puppet::ModuleTool::Shared
         *download_tarballs(release[:dependencies], default_path, forge)
       ]
     end.flatten
+  end
+
+  def forced?
+    options[:force]
+  end
+
+  def add_module_name_constraints_to_graph(graph)
+    # Puppet modules are installed by "module name", but resolved by
+    # "full name" (including namespace).  So that we don't run into
+    # problems at install time, we should reject any solution that
+    # depends on multiple nodes with the same "module name".
+    graph.add_graph_constraint('PMT') do |nodes|
+      names = nodes.map { |x| x.dependency_names + [ x.name ] }.flatten
+      names = names.map { |x| x.tr('/', '-') }.uniq
+      names = names.map { |x| x[/-(.*)/, 1] }
+      names.length == names.uniq.length
+    end
+  end
+
+  def add_pe_constraints_to_graph(graph)
+    if Puppet.version =~ /\(Puppet Enterprise (.*)\)/
+      pe_version = Semantic::Version.parse($1)
+
+      graph.add_graph_constraint('PE Version') do |nodes|
+        pe_versions = nodes.map { |x| x.metadata['pe_version'] }.compact
+        pe_versions.all? do |range|
+          Semantic::VersionRange.parse(range).include?(pe_version)
+        end
+      end
+    end
   end
 end
