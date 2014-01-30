@@ -263,6 +263,21 @@ Puppet::Face.define(:module, '1.0.0') do
       end
     end
 
+    if mod.has_metadata?
+      (mod.metadata['requirements'] || []).each do |req|
+        if Puppet.version =~ /\(Puppet Enterprise (.*)\)/
+          pe_version = Semantic::Version.parse($1)
+
+          if req['name'].upcase == 'PE'
+            range = Semantic::VersionRange.parse(req['version_requirement'])
+            unless range.include?(pe_version)
+              str << '  ' + colorize(:red, "[PE #{req['version_requirement']}]")
+            end
+          end
+        end
+      end
+    end
+
     { :text => str }
   end
 end
