@@ -126,7 +126,7 @@ module Puppet
         valid_compare_ops = {'==' => 'equal to', '>' => 'greater than', '<' => 'less than'}
         assert_match(/#{module_author}-#{module_name}/, stdout,
               "Notice that module '#{module_author}-#{module_name}' was installed was not displayed")
-        if version
+        if module_version
           /#{module_author}-#{module_name} \(.*v(\d+\.\d+\.\d+)/ =~ stdout
           installed_version = Regexp.last_match[1]
           if valid_compare_ops.include? compare_op
