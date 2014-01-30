@@ -52,8 +52,8 @@ end
 assert_module_not_installed_on_disk(master, master['distmoduledir'], module_name)
 
 step "Install a specifc module version that is already installed (with --force)"
-on master, puppet("module install #{module_author}-#{module_name} --force --version 1.0.0") do
-  assert_module_installed_ui(stdout, module_author, module_name, '1.0.0', '==')
+on master, puppet("module install #{module_author}-#{module_name} --force --version 0.0.1") do
+  assert_module_installed_ui(stdout, module_author, module_name, '0.0.1', '==')
 end
 assert_module_installed_on_disk(master, master['distmoduledir'], module_name)
 
