@@ -40,7 +40,12 @@ module Puppet::ModuleTool
             raise MultipleInstalledError, results.merge(:module_name => name)
           end
 
-          mod = installed_modules[name].mod
+          mod = installed_modules[name]
+          def mod.priority
+            0
+          end
+
+          mod = mod.mod
           results[:installed_version] = Semantic::Version.parse(mod.version)
           dir = Pathname.new(mod.modulepath)
 
@@ -99,7 +104,7 @@ module Puppet::ModuleTool
 
           # Ensure that there is at least one candidate release available
           # for the target package.
-          if graph.dependencies[name].all? { |r| r == installed_modules[name] }
+          if graph.dependencies[name] == [ installed_modules[name] ]
             raise NoCandidateReleasesError, results.merge(:module_name => name, :source => module_repository.host)
           end
 

@@ -137,12 +137,12 @@ describe Puppet::ModuleTool::Applications::Installer do
         end
 
         context '(outdated but suitable version)' do
-          before { preinstall('pmtacceptance-stdlib', '2.3.0') }
+          before { preinstall('pmtacceptance-stdlib', '2.4.0') }
 
           it 'installs only the specified module' do
             subject.should include :result => :success
             graph_should_include 'pmtacceptance-apache', nil => v('0.10.0')
-            graph_should_include 'pmtacceptance-stdlib', :path => primary_dir
+            graph_should_include 'pmtacceptance-stdlib', v('2.4.0') => v('2.4.0'), :path => primary_dir
           end
         end
 
@@ -165,7 +165,7 @@ describe Puppet::ModuleTool::Applications::Installer do
           it 'installs the module only' do
             subject.should include :result => :success
             graph_should_include 'pmtacceptance-apache', nil => v('0.0.4')
-            # graph_should_include 'pmtacceptance-stdlib', :path => secondary_dir
+            graph_should_include 'pmtacceptance-stdlib', nil
           end
         end
 

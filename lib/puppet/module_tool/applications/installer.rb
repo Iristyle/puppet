@@ -50,10 +50,12 @@ module Puppet::ModuleTool
         results = { :action => :install, :module_name => name, :module_version => version }
 
         begin
-          unless forced?
-            if installed_modules.key?(name)
-              mod = installed_modules[name]
-
+          if mod = installed_modules[name]
+            if forced?
+              def mod.priority
+                -1
+              end
+            else
               if Semantic::VersionRange.parse(version).include? mod.version
                 results[:result] = :noop
                 return results
@@ -113,7 +115,7 @@ module Puppet::ModuleTool
 
           # Ensure that there is at least one candidate release available
           # for the target package.
-          if graph.dependencies[name].size < 1
+          if graph.dependencies[name].empty?
             raise MissingPackageError, results.merge(:requested_package => name, :source => module_repository.host)
           end
 

@@ -29,12 +29,14 @@ describe Puppet::ModuleTool::Applications::Upgrader do
   let(:secondary_dir) { File.join(vardir, "secondary") }
   let(:remote_source) { PuppetSpec::ModuleTool::StubSource.new }
 
+  before do
+    Semantic::Dependency.clear_sources
+    installer = Puppet::ModuleTool::Applications::Upgrader.any_instance
+    installer.stubs(:module_repository).returns(remote_source)
+  end
+
   def upgrader(name, options = {})
-    Puppet::ModuleTool::Applications::Upgrader.new(name, options).tap do |this|
-      Semantic::Dependency.clear_sources
-      Semantic::Dependency.add_source(this.send(:installed_modules_source))
-      Semantic::Dependency.add_source(remote_source)
-    end
+    Puppet::ModuleTool::Applications::Upgrader.new(name, options)
   end
 
   describe '#run' do
@@ -222,7 +224,7 @@ describe Puppet::ModuleTool::Applications::Upgrader do
           before { preinstall('pmtacceptance-stdlib', '2.4.0') }
           let(:module) { 'pmtacceptance-apache' }
 
-          it 'upgrades the module only', :pending => 'Automatically upgrades dependencies' do
+          it 'upgrades the module only' do
             subject.should include :result => :success
             graph_should_include 'pmtacceptance-apache', v('0.0.3') => v('0.10.0')
             graph_should_include 'pmtacceptance-stdlib', nil

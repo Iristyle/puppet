@@ -7,6 +7,10 @@ module Puppet::ModuleTool
   class InstalledModules < Semantic::Dependency::Source
     attr_reader :modules, :by_name
 
+    def priority
+      10
+    end
+
     def initialize
       env = Puppet::Node::Environment.current
       modules = env.modules_by_path

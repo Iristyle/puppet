@@ -22,6 +22,10 @@ module Semantic
         constraints.keys.each { |key| add_dependency(key) }
       end
 
+      def priority
+        @source.priority
+      end
+
       def satisfied_by?(node)
         if @constraints.key? node.name
           @constraints[node.name] === node.version
@@ -31,7 +35,7 @@ module Semantic
       end
 
       def <=>(other)
-        [ name, version ] <=> [ other.name, other.version ]
+        [ priority, name, version ] <=> [ other.priority, other.name, other.version ]
       end
 
       def to_s
