@@ -32,6 +32,7 @@ module PuppetSpec
             options[:version] ||= to
           end
 
+          release.should_not be_nil
           release.should include options
         end
       end
