@@ -4,7 +4,7 @@ require 'puppet_spec/module_tool/shared_functions'
 require 'puppet_spec/module_tool/stub_source'
 require 'semver'
 
-describe Puppet::ModuleTool::Applications::Installer, :unless => Puppet.features.microsoft_windows? do
+describe Puppet::ModuleTool::Applications::Installer do
   include PuppetSpec::ModuleTool::SharedFunctions
   include PuppetSpec::Files
   include PuppetSpec::Fixtures
@@ -22,7 +22,7 @@ describe Puppet::ModuleTool::Applications::Installer, :unless => Puppet.features
     FileUtils.mkdir_p(primary_dir)
     FileUtils.mkdir_p(secondary_dir)
     Puppet.settings[:vardir] = vardir
-    Puppet.settings[:modulepath] = [ primary_dir, secondary_dir ].join(':')
+    Puppet.settings[:modulepath] = [ primary_dir, secondary_dir ].join(File::PATH_SEPARATOR)
   end
 
   let(:vardir)   { tmpdir('upgrader') }
