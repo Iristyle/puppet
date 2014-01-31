@@ -27,5 +27,5 @@ common-install-indep::
 	cp -pr $(CURDIR)/ext $(CURDIR)/debian/tmp/$(pe_prefix)/share/puppet
 	bash $(CURDIR)/debian/rmshebang.sh $(CURDIR)/debian/tmp/$(pe_prefix)/share/puppet/ext
 	bash $(CURDIR)/debian/rmshebang.sh $(CURDIR)/debian/tmp/$(pe_prefix)/$(pe_libdir)/puppet/network/http_server/mongrel.rb
-	cp $(CURDIR)/ext/vim/ftdetect/puppet.vim $(CURDIR)/ext/vim/ftdetect/pe-puppet.vim
-	cp $(CURDIR)/ext/vim/syntax/puppet.vim $(CURDIR)/ext/vim/syntax/pe-puppet.vim
+	cp $(CURDIR)/ext/vim/ftdetect/pe-puppet.vim $(CURDIR)/ext/vim/ftdetect/pe-puppet.vim
+	cp $(CURDIR)/ext/vim/syntax/pe-puppet.vim $(CURDIR)/ext/vim/syntax/pe-puppet.vim
