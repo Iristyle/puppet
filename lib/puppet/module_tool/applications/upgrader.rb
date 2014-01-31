@@ -104,7 +104,7 @@ module Puppet::ModuleTool
 
           # Ensure that there is at least one candidate release available
           # for the target package.
-          if graph.dependencies[name] == [ installed_modules[name] ]
+          if graph.dependencies[name].empty? || graph.dependencies[name] == SortedSet.new([ installed_modules[name] ])
             if results[:requested_version] == :latest || !Semantic::VersionRange.parse(results[:requested_version]).include?(results[:installed_version])
               raise NoCandidateReleasesError, results.merge(:module_name => name, :source => module_repository.host)
             end
