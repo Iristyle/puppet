@@ -234,8 +234,8 @@ chmod +x %{buildroot}%{_datadir}/%{_name}/ext/regexp_nodes/regexp_nodes.rb
 
 # Install VIM syntax files
 vimdir=%{buildroot}%{_real_datadir}/vim/vimfiles
-install -Dp -m0644 ext/vim/ftdetect/pe-puppet.vim $vimdir/ftdetect/pe-puppet.vim
-install -Dp -m0644 ext/vim/syntax/pe-puppet.vim $vimdir/syntax/pe-puppet.vim
+install -Dp -m0644 ext/vim/ftdetect/puppet.vim $vimdir/ftdetect/pe-puppet.vim
+install -Dp -m0644 ext/vim/syntax/puppet.vim $vimdir/syntax/pe-puppet.vim
 
 # emacs bits aren't installed, we remove packaging
 # artifacts not applicable to rpm, and vim installed elsewhere
