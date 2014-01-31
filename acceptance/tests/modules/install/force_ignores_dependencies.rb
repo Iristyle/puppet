@@ -17,9 +17,8 @@ stub_forge_on(master)
 
 step "Try to install an unsatisfiable module"
 on master, puppet("module install #{module_author}-#{module_name}"), :acceptable_exit_codes => [1] do
-  #FIXME assertion matches old output
-  #assert_match(/No version of '#{module_author}-#{module_name}' will satisfy dependencies/, stderr,
-  #     "Error that module dependencies could not be met was not displayed")
+  assert_match(/No version of '#{module_author}-#{module_name}' can satisfy all dependencies/, stderr,
+    "Error that module dependencies could not be met was not displayed")
 end
 assert_module_not_installed_on_disk(master, master['distmoduledir'], module_name)
 module_dependencies.each do |dependency|

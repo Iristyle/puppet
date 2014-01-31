@@ -38,7 +38,7 @@ module Puppet::ModuleTool
         end
 
         unless @local_tarball && @ignore_dependencies
-          Semantic::Dependency.add_source(installed_modules_source)
+          Semantic::Dependency.add_source(installed_modules_source) unless forced?
           Semantic::Dependency.add_source(module_repository)
         end
       end
@@ -47,13 +47,11 @@ module Puppet::ModuleTool
         name = @name.tr('/', '-')
         version = options[:version] || '>= 0'
 
-        results = { :action => :install, :name => name, :version => version }
+        results = { :action => :install, :module_name => name, :module_version => version }
 
         begin
-          unless forced?
-            if installed_modules.key?(name)
-              mod = installed_modules[name]
-
+          if mod = installed_modules[name]
+            unless forced?
               if Semantic::VersionRange.parse(version).include? mod.version
                 results[:result] = :noop
                 return results
@@ -111,6 +109,12 @@ module Puppet::ModuleTool
             end
           end
 
+          # Ensure that there is at least one candidate release available
+          # for the target package.
+          if graph.dependencies[name].empty?
+            raise NoCandidateReleasesError, results.merge(:module_name => name, :source => module_repository.host, :requested_version => options[:version] || :latest)
+          end
+
           begin
             Puppet.info "Resolving dependencies ..."
             releases = Semantic::Dependency.resolve(graph)
@@ -146,10 +150,11 @@ module Puppet::ModuleTool
 
           Puppet.notice 'Installing -- do not interrupt ...'
           releases.each do |release|
-            if installed = installed_modules[release.name]
-              release.install(Pathname.new(installed.mod.modulepath))
-            else
+            installed = installed_modules[release.name]
+            if forced? || installed.nil?
               release.install(Pathname.new(results[:install_dir]))
+            else
+              release.install(Pathname.new(installed.mod.modulepath))
             end
           end
 
@@ -221,7 +226,7 @@ module Puppet::ModuleTool
           :dependencies     => dependencies.compact,
           :version          => release.version,
           :previous_version => previous,
-          :action           => (previous && previous != release.version ? :upgrade : :install),
+          :action           => (previous.nil? || previous == release.version || forced? ? :install : :upgrade),
         }
       end
 

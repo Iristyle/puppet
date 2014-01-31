@@ -51,9 +51,14 @@ on master, puppet("module install #{module_author}-#{module_name} --version 1.x"
 end
 assert_module_not_installed_on_disk(master, master['distmoduledir'], module_name)
 
+step "Install a specifc module version that is already installed (with --force)"
+on master, puppet("module install #{module_author}-#{module_name} --force --version 0.0.1") do
+  assert_module_installed_ui(stdout, module_author, module_name, '0.0.1', '==')
+end
+assert_module_installed_on_disk(master, master['distmoduledir'], module_name)
+
 step "Install a module that is already installed (with --force)"
 on master, puppet("module install #{module_author}-#{module_name} --force") do
   assert_module_installed_ui(stdout, module_author, module_name)
 end
-# FIXME: PF-354
-#assert_module_installed_on_disk(master, master['distmoduledir'], module_name)
+assert_module_installed_on_disk(master, master['distmoduledir'], module_name)

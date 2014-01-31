@@ -21,6 +21,36 @@ module Puppet::ModuleTool::Errors
     end
   end
 
+  class NoCandidateReleasesError < ModuleToolError
+    def initialize(options)
+      @module_name       = options[:module_name]
+      @requested_version = options[:requested_version]
+      @installed_version = options[:installed_version]
+      @source            = options[:source]
+      @action            = options[:action]
+
+      if @requested_version == :latest
+        super "Could not #{@action} '#{@module_name}'; no releases are available from #{@source}"
+      else
+        super "Could not #{@action} '#{@module_name}'; no releases matching '#{@requested_version}' are available from #{@source}"
+      end
+    end
+
+    def multiline
+      message = []
+      message << "Could not #{@action} '#{@module_name}' (#{vstring})"
+
+      if @requested_version == :latest
+        message << "  No releases are available from #{@source}"
+        message << "    Does '#{@module_name}' have at least one published release?"
+      else
+        message << "  No releases matching '#{@requested_version}' are available from #{@source}"
+      end
+
+      message.join("\n")
+    end
+  end
+
   class InstallConflictError < ModuleToolError
     def initialize(options)
       @requested_module  = options[:requested_module]

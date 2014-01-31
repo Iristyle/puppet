@@ -39,7 +39,6 @@ on master, puppet("module list --modulepath #{master['distmoduledir']}") do
   OUTPUT
 end
 
-# FIXME PF-357 (maybe)
 step "Try to upgrade a module with constraints on its dependencies that cannot be met"
 on master, puppet("module upgrade pmtacceptance-java --version 1.7.1"), :acceptable_exit_codes => [1] do
   assert_match(/No version.* can satisfy all dependencies/, stderr,

@@ -25,18 +25,14 @@ on master, puppet("module upgrade pmtacceptance-java --version 1.6.x"), :accepta
     "Error that specified version was already satisfied was not displayed")
 end
 
-# FIXME output changed to no longer use -> syntax when version is unchanged?
-#step "Upgrade a module to the current version with --force"
-#on master, puppet("module upgrade pmtacceptance-java --version 1.6.x --force") do
-#  assert_output <<-OUTPUT
-#    \e[mNotice: Preparing to upgrade 'pmtacceptance-java' ...\e[0m
-#    \e[mNotice: Found 'pmtacceptance-java' (\e[0;36mv1.6.0\e[m) in #{master['distmoduledir']} ...\e[0m
-#    \e[mNotice: Downloading from https://forgeapi.puppetlabs.com ...\e[0m
-#    \e[mNotice: Upgrading -- do not interrupt ...\e[0m
-#    #{master['distmoduledir']}
-#    └── pmtacceptance-java (\e[0;36mv1.6.0 -> v1.6.0\e[0m)
-#  OUTPUT
-#end
+step "Upgrade a module to the current version with --force"
+on master, puppet("module upgrade pmtacceptance-java --version 1.6.x --force") do
+  assert_match(/#{master['distmoduledir']}/, stdout,
+    'Error that distmoduledir was not displayed')
+
+  assert_match(/pmtacceptance-java \(.*v1\.6\.0.*\)/, stdout,
+    'Error that package name and version were not displayed')
+end
 
 step "Upgrade to the latest version"
 on master, puppet("module upgrade pmtacceptance-java") do
@@ -56,15 +52,11 @@ on master, puppet("module upgrade pmtacceptance-java"), :acceptable_exit_codes =
     "Error that latest version was already installed was not displayed")
 end
 
-# FIXME output changed to no longer use -> syntax when version is unchanged?
-#step "Upgrade a module to the latest version with --force"
-#on master, puppet("module upgrade pmtacceptance-java --force") do
-#  assert_output <<-OUTPUT
-#    \e[mNotice: Preparing to upgrade 'pmtacceptance-java' ...\e[0m
-#    \e[mNotice: Found 'pmtacceptance-java' (\e[0;36mv1.7.1\e[m) in #{master['distmoduledir']} ...\e[0m
-#    \e[mNotice: Downloading from https://forgeapi.puppetlabs.com ...\e[0m
-#    \e[mNotice: Upgrading -- do not interrupt ...\e[0m
-#    #{master['distmoduledir']}
-#    └── pmtacceptance-java (\e[0;36mv1.7.1 -> v1.7.1\e[0m)
-#  OUTPUT
-#end
+step "Upgrade a module to the latest version with --force"
+on master, puppet("module upgrade pmtacceptance-java --force") do
+  assert_match(/#{master['distmoduledir']}/, stdout,
+    'Error that distmoduledir was not displayed')
+
+  assert_match(/pmtacceptance-java \(.*v1\.7\.1.*\)/, stdout,
+    'Error that package name and version were not displayed')
+end

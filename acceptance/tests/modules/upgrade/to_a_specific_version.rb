@@ -31,7 +31,7 @@ on master, puppet("module upgrade pmtacceptance-java --version 1.7.0") do
   OUTPUT
 end
 
-# FIXME PF-361
+# FIXME this should fail
 #step "Upgrade a module to a specific (lesser) version"
 #on master, puppet("module upgrade pmtacceptance-java --version 1.6.0") do
 #  assert_output <<-OUTPUT

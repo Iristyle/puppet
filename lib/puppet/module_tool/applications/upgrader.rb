@@ -34,13 +34,23 @@ module Puppet::ModuleTool
         }
 
         begin
-          if installed_modules_source.fetch(name).empty?
-            raise NotInstalledError, results.merge(:module_name => name)
-          elsif Puppet::Node::Environment.current.modules.select { |x| x.name.tr('/', '-') == name }.length > 1
-            raise MultipleInstalledError, results.merge(:module_name => name)
+          all_modules = Puppet::Node::Environment.current.modules_by_path.values.flatten
+          matching_modules = all_modules.select do |x|
+            x.forge_name && x.forge_name.tr('/', '-') == name
           end
 
-          mod = installed_modules[name].mod
+          if matching_modules.empty?
+            raise NotInstalledError, results.merge(:module_name => name)
+          elsif matching_modules.length > 1
+            raise MultipleInstalledError, results.merge(:module_name => name, :installed_modules => matching_modules)
+          end
+
+          mod = installed_modules[name]
+          def mod.priority
+            0
+          end
+
+          mod = mod.mod
           results[:installed_version] = Semantic::Version.parse(mod.version)
           dir = Pathname.new(mod.modulepath)
 
@@ -99,8 +109,10 @@ module Puppet::ModuleTool
 
           # Ensure that there is at least one candidate release available
           # for the target package.
-          if graph.dependencies[name].all? { |r| r == installed_modules[name] }
-            raise NoCandidateReleasesError, results.merge(:module_name => name, :source => module_repository.host)
+          if graph.dependencies[name].empty? || graph.dependencies[name] == SortedSet.new([ installed_modules[name] ])
+            if results[:requested_version] == :latest || !Semantic::VersionRange.parse(results[:requested_version]).include?(results[:installed_version])
+              raise NoCandidateReleasesError, results.merge(:module_name => name, :source => module_repository.host)
+            end
           end
 
           begin
