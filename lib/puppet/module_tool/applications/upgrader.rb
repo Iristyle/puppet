@@ -34,10 +34,15 @@ module Puppet::ModuleTool
         }
 
         begin
-          if installed_modules_source.fetch(name).empty?
+          all_modules = Puppet::Node::Environment.current.modules_by_path.values.flatten
+          matching_modules = all_modules.select do |x|
+            x.forge_name && x.forge_name.tr('/', '-') == name
+          end
+
+          if matching_modules.empty?
             raise NotInstalledError, results.merge(:module_name => name)
-          elsif Puppet::Node::Environment.current.modules.select { |x| x.name.tr('/', '-') == name }.length > 1
-            raise MultipleInstalledError, results.merge(:module_name => name)
+          elsif matching_modules.length > 1
+            raise MultipleInstalledError, results.merge(:module_name => name, :installed_modules => matching_modules)
           end
 
           mod = installed_modules[name]
