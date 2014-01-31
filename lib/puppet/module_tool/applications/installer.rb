@@ -38,7 +38,7 @@ module Puppet::ModuleTool
         end
 
         unless @local_tarball && @ignore_dependencies
-          Semantic::Dependency.add_source(installed_modules_source)
+          Semantic::Dependency.add_source(installed_modules_source) unless forced?
           Semantic::Dependency.add_source(module_repository)
         end
       end
@@ -51,11 +51,7 @@ module Puppet::ModuleTool
 
         begin
           if mod = installed_modules[name]
-            if forced?
-              def mod.priority
-                -1
-              end
-            else
+            unless forced?
               if Semantic::VersionRange.parse(version).include? mod.version
                 results[:result] = :noop
                 return results
