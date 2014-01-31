@@ -51,18 +51,6 @@ on master, puppet("module upgrade pmtacceptance-nginx"), :acceptable_exit_codes 
   OUTPUT
 end
 
-# FIXME PF-362 (Doesn't see nginx as installed since no metadata.json?)
-#step "Try to upgrade a local module"
-#on master, puppet("module upgrade nginx"), :acceptable_exit_codes => [1] do
-#  assert_output <<-OUTPUT
-#    STDOUT> \e[mNotice: Preparing to upgrade 'nginx' ...\e[0m
-#    STDOUT> \e[mNotice: Found 'nginx' (\e[0;36m???\e[m) in #{master['distmoduledir']} ...\e[0m
-#    STDOUT> \e[mNotice: Downloading from https://forgeapi.puppetlabs.com ...\e[0m
-#    STDERR> \e[1;31mError: Could not upgrade module 'nginx' (??? -> latest)
-#    STDERR>   Module 'nginx' does not exist on https://forgeapi.puppetlabs.com\e[0m
-#  OUTPUT
-#end
-
 step "Try to upgrade a module that doesn't exist in module_repository"
 on master, puppet("module upgrade notpmtacceptance-unicorns"), :acceptable_exit_codes => [1] do
   assert_match(/could not upgrade 'notpmtacceptance-unicorns'/i, stderr,
