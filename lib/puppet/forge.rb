@@ -99,7 +99,17 @@ class Puppet::Forge < Semantic::Dependency::Source
       uri = response['pagination']['next']
     end
 
-    releases
+    with_matched_requirements = releases.select do |x|
+      Puppet::ModuleTool.has_pe_requirement?(x.metadata) &&
+      Puppet::ModuleTool.meets_all_pe_requirements(x.metadata)
+    end
+
+    if with_matched_requirements.any?
+      Puppet.debug "Found supported release for #{name}; excluding unsupported releases"
+      return with_matched_requirements
+    end
+
+    return releases
   end
 
   def make_http_request(*args)
