@@ -67,16 +67,14 @@ on master, puppet("module upgrade pmtacceptance-java --version 1.7.0 --ignore-de
   OUTPUT
 end
 
-# FIXME we no longer will upgrade across major versions (stdlub dependency)
-#step "Upgrade a module with constraints on its dependencies that can be met"
-#on master, puppet("module upgrade pmtacceptance-java") do
-#  assert_output <<-OUTPUT
-#    \e[mNotice: Preparing to upgrade 'pmtacceptance-java' ...\e[0m
-#    \e[mNotice: Found 'pmtacceptance-java' (\e[0;36mv1.7.0\e[m) in #{master['distmoduledir']} ...\e[0m
-#    \e[mNotice: Downloading from https://forgeapi.puppetlabs.com ...\e[0m
-#    \e[mNotice: Upgrading -- do not interrupt ...\e[0m
-#    #{master['distmoduledir']}
-#    └─┬ pmtacceptance-java (\e[0;36mv1.7.0 -> v1.7.1\e[0m)
-#      └── pmtacceptance-stdlub (\e[0;36mv0.0.2 -> v1.0.0\e[0m)
-#  OUTPUT
-#end
+step "Attempt to upgrade a module where dependency requires upgrade across major version"
+on master, puppet("module upgrade pmtacceptance-java"), :acceptable_exit_codes => [1] do
+  assert_match(/There are 1 newer versions/, stderr,
+    'Number of newer releases was not displayed')
+
+  assert_match(/Dependencies will not be automatically upgraded across major versions/, stderr,
+    'Dependency upgrade restriction message was not displayed')
+
+  assert_match(/pmtacceptance-stdlub/, stderr,
+    'Potential culprit depdendency was not displayed')
+end
