@@ -144,6 +144,9 @@ class Puppet::Forge < Semantic::Dependency::Source
       module_dir = dir + name[/-(.*)/, 1]
       module_dir.rmtree if module_dir.exist?
 
+      # Make sure unpacked module has the same ownership as the folder we are moving it into.
+      Puppet::ModuleTool::Applications::Unpacker.harmonize_ownership(dir, staging_dir)
+
       FileUtils.mv(staging_dir, module_dir)
       @install_dir = dir
 
