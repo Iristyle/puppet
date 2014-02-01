@@ -179,16 +179,9 @@ module Puppet::ModuleTool::Shared
   end
 
   def add_requirements_constraints_to_graph(graph)
-    if Puppet.version =~ /\(Puppet Enterprise (.*)\)/
-      pe_version = Semantic::Version.parse($1)
-
-      graph.add_graph_constraint('PE Version') do |nodes|
-        requirements    = nodes.map { |x| x.metadata['requirements'] }.flatten.compact
-        pe_requirements = requirements.select { |x| x['name'].upcase == 'PE' }
-        pe_versions     = pe_requirements.map { |x| x['version_requirement'] }
-        pe_versions.all? do |range|
-          Semantic::VersionRange.parse(range).include?(pe_version)
-        end
+    graph.add_graph_constraint('PE Version') do |nodes|
+      nodes.all? do |node|
+        Puppet::ModuleTool.meets_all_pe_requirements(node.metadata)
       end
     end
   end
