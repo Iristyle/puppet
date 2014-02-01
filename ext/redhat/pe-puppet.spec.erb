@@ -81,7 +81,7 @@ Version:        %{rpmversion}
 Vendor:         Puppet Labs
 Release:        <%= @rpmrelease -%>.pe%{?dist}
 Summary:        A network tool for managing many disparate systems
-License:        ASL 2.0
+License:        PL Commercial
 URL:            http://puppetlabs.com
 Source0:        %{name}-%{realversion}.tar.gz
 
@@ -192,9 +192,12 @@ rm -rf %{buildroot}/etc/puppet
 
 %if 0%{?_aix}
 install -d -m0755 %{buildroot}%{_localstatedir}/lib/%{name}
+install -d -m0750 %{buildroot}%{_localstatedir}/lib/%{name}/reports
+install -Dp -m0644 %{confdir}/%{name}.conf %{buildroot}%{_sysconfdir}/%{_name}/puppet.conf
 %else
 install -d -m0755 %{buildroot}%{_localstatedir}/opt/lib/%{name}
 install -d -m0750 %{buildroot}%{_localstatedir}/opt/lib/%{name}/reports
+install -Dp -m0644 ext/%{_name}.conf %{buildroot}%{_sysconfdir}/%{_name}/puppet.conf
 %endif
 
 install -d -m0755 %{buildroot}%{_sysconfdir}/%{_name}/manifests
@@ -215,7 +218,6 @@ install -Dp -m0644 %{confdir}/%{name}-logrotate %{buildroot}%{_real_sysconfdir}/
 %endif
 
 install -Dp -m0644 %{confdir}/%{name}-fileserver.conf %{buildroot}%{_sysconfdir}/%{_name}/fileserver.conf
-install -Dp -m0644 %{confdir}/%{name}.conf %{buildroot}%{_sysconfdir}/%{_name}/puppet.conf
 install -Dp -m0644 conf/auth.conf %{buildroot}%{_sysconfdir}/%{_name}/auth.conf
 touch %{buildroot}%{_sysconfdir}/%{_name}/console.conf
 
@@ -232,8 +234,8 @@ chmod +x %{buildroot}%{_datadir}/%{_name}/ext/regexp_nodes/regexp_nodes.rb
 
 # Install VIM syntax files
 vimdir=%{buildroot}%{_real_datadir}/vim/vimfiles
-install -Dp -m0644 ext/vim/ftdetect/puppet.vim $vimdir/ftdetect/pe-puppet.vim
-install -Dp -m0644 ext/vim/syntax/puppet.vim $vimdir/syntax/pe-puppet.vim
+install -Dp -m0644 ext/vim/ftdetect/pe-puppet.vim $vimdir/ftdetect/pe-puppet.vim
+install -Dp -m0644 ext/vim/syntax/pe-puppet.vim $vimdir/syntax/pe-puppet.vim
 
 # emacs bits aren't installed, we remove packaging
 # artifacts not applicable to rpm, and vim installed elsewhere
@@ -277,7 +279,7 @@ ln -sf %{_prefix}/bin/puppet %{buildroot}%{_symlinkdir}/puppet
 
 %files
 %defattr(-, root, root, 0755)
-%doc LICENSE README.md examples
+%doc README.md examples
 %{_bindir}/puppet
 %{_symlinkdir}/puppet
 %{_bindir}/extlookup2hiera
@@ -338,10 +340,8 @@ ln -sf %{_prefix}/bin/puppet %{buildroot}%{_symlinkdir}/puppet
 %{_localstatedir}/log/%{name}
 %if 0%{?_aix}
 %{_localstatedir}/lib/%{name}
-%{_localstatedir}/lib/%{name}/reports
 %else
 %{_localstatedir}/opt/lib/%{name}
-%{_localstatedir}/opt/lib/%{name}/reports
 %endif
 
 %if 0%{?build_server}

@@ -264,17 +264,14 @@ Puppet::Face.define(:module, '1.0.0') do
     end
 
     if mod.has_metadata?
-      (mod.metadata['requirements'] || []).each do |req|
-        if Puppet.version =~ /\(Puppet Enterprise (.*)\)/
-          pe_version = Semantic::Version.parse($1)
-
-          if req['name'].upcase == 'PE'
-            range = Semantic::VersionRange.parse(req['version_requirement'])
-            unless range.include?(pe_version)
-              str << '  ' + colorize(:red, "[PE #{req['version_requirement']}]")
-            end
-          end
+      data = mod.metadata
+      unless Puppet::ModuleTool.meets_all_pe_requirements(data)
+        req = data['requirements'].first do |x|
+          x['name'].upcase == 'PE' &&
+          !Puppet::ModuleTool.match_pe_version(x['version_requirement'])
         end
+
+        str << '  ' + colorize(:red, "[PE #{req['version_requirement']}]")
       end
     end
 

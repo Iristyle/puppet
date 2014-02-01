@@ -37,7 +37,7 @@ Documentation](https://github.com/puppetlabs/puppet/blob/master/README_DEVELOPER
 License
 -------
 
-See LICENSE file.
+This software is licensed under the Puppet Labs Commercial license.
 
 Support
 -------
