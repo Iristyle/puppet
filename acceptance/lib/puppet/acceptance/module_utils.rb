@@ -141,7 +141,7 @@ module Puppet
       # @param host [HOST] the host object to make the remote call on
       # @param moduledir [String] the path where the module should be
       # @param module_name [String] the name portion of a module name
-      def assert_module_installed_on_disk ( host, moduledir, module_name )
+      def assert_module_installed_on_disk ( host, moduledir, module_name, module_version = nil )
         # module directory should exist
         on host, %Q{[ -d "#{moduledir}/#{module_name}" ]}
 
@@ -165,6 +165,15 @@ module Puppet
           listings.each do |line|
             assert_match /(drwxr-xr-x|[^d]r--r--r--)[^\d]+\d+\s+#{owner}\s+#{group}/, line,
               "bad permissions for '#{line[/\S+$/]}' - expected 444/755, #{owner}, #{group}"
+          end
+        end
+
+        # If specified, module version on disk should match version given.
+        if module_version
+          on host, %Q{cat "#{moduledir}/#{module_name}/metadata.json"} do |res|
+            p = JSON.parse(res.stdout)
+            installed_version = p['version']
+            assert_equal(module_version, installed_version)
           end
         end
       end
