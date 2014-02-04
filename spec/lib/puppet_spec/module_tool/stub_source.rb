@@ -99,27 +99,33 @@ module PuppetSpec
             "0.0.2" => { "pmtacceptance/stdlib" => ">= 2.2.0", "pmtacceptance/mysql" => ">= 0.0.1" },
             "0.0.1" => { "pmtacceptance/stdlib" => ">= 2.2.0" },
           },
+          'pmtacceptance-pe_version' => {
+            "1.0.0" => { :requirements => [{ "name" => "pe", "version_requirement" => "1.x" }] },
+            "1.0.1" => { :requirements => [{ "name" => "pe", "version_requirement" => "1.x" }] },
+          },
         }
 
         @available_releases.each do |name, versions|
           versions.each do |version, deps|
-            constraints = Hash[deps.map { |k, v| [ k.tr('/', '-'), v ] }]
+            deps, metadata = deps.partition { |k,v| k.is_a? String }
+            dependencies = Hash[deps.map { |k, v| [ k.tr('/', '-'), v ] }]
 
-            versions[version] = create_release(name, version, constraints).tap do |release|
+            versions[version] = create_release(name, version, dependencies).tap do |release|
               release.meta_def(:prepare)     { }
               release.meta_def(:install)     { |x| @install_dir = x.to_s }
               release.meta_def(:install_dir) { @install_dir }
               release.meta_def(:metadata) do
-                {
+                metadata = Hash[metadata].merge(
                   :name         => name,
                   :version      => version,
                   :source       => '',   # GRR, Puppet!
                   :author       => '',   # GRR, Puppet!
                   :license      => '',   # GRR, Puppet!
-                  :dependencies => constraints.map do |dep, range|
+                  :dependencies => dependencies.map do |dep, range|
                     { :name => dep, :version_requirement => range }
                   end
-                }
+                )
+                Hash[metadata.map { |k,v| [ k.to_s, v ] }]
               end
             end
           end

@@ -76,8 +76,10 @@ module Puppet::ModuleTool
             graph = build_dependency_graph(name, version)
           end
 
-          add_module_name_constraints_to_graph(graph)
-          add_requirements_constraints_to_graph(graph)
+          unless forced?
+            add_module_name_constraints_to_graph(graph)
+            add_requirements_constraints_to_graph(graph)
+          end
 
           installed_modules.each do |mod, release|
             mod = mod.tr('/', '-')
@@ -192,7 +194,9 @@ module Puppet::ModuleTool
 
       private
       def module_repository
-        @repo ||= Puppet::Forge.new
+        @repo ||= Puppet::Forge.new.tap do |repo|
+          repo.filter_pe_versions = !forced?
+        end
       end
 
       def installed_modules_source
