@@ -11,6 +11,15 @@ module Puppet::ModuleTool
         app.move_into(target)
       end
 
+      def self.harmonize_ownership(source, target)
+        unless Puppet.features.microsoft_windows?
+          source = Pathname.new(source) unless source.respond_to?(:stat)
+          target = Pathname.new(target) unless target.respond_to?(:stat)
+
+          FileUtils.chown_R(source.stat.uid, source.stat.gid, target)
+        end
+      end
+
       def initialize(filename, options = {})
         @filename = Pathname.new(filename)
         super(options)
