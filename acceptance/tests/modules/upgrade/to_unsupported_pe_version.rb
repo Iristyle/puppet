@@ -11,8 +11,9 @@ orig_installed_modules = get_installed_modules_for_hosts hosts
 stub_forge_on(master)
 distmoduledir = on(master, puppet("agent", "--configprint", "confdir")).stdout.chomp + "/modules"
 
-module_version = "#{get_pe_version(master)[:major]}.5.0"
-module_upgrade_version = "#{get_pe_version(master)[:major]}.7.0"
+pe_major = get_pe_version(master)[:major]
+module_version = "#{pe_major}.5.0"
+module_upgrade_version = "#{pe_major}.7.0"
 
 teardown do
   rm_installed_modules_from_hosts orig_installed_modules, (get_installed_modules_for_hosts hosts)
