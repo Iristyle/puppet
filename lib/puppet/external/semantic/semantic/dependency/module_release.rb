@@ -5,33 +5,30 @@ module Semantic
     class ModuleRelease
       include GraphNode
 
-      attr_reader :name, :version, :constraints
+      attr_reader :name, :version
 
       # Create a new instance of a module release.
       #
       # @param source [Semantic::Dependency::Source]
       # @param name [String]
       # @param version [Semantic::Version]
-      # @param constraints [{String => Semantic::VersionRange}]
-      def initialize(source, name, version, constraints = {})
+      # @param dependencies [{String => Semantic::VersionRange}]
+      def initialize(source, name, version, dependencies = {})
         @source      = source
         @name        = name.freeze
         @version     = version.freeze
-        @constraints = constraints.freeze
 
-        constraints.keys.each { |key| add_dependency(key) }
+        dependencies.each do |name, range|
+          add_constraint('initialize', name, range.to_s) do |node|
+            range === node.version
+          end
+
+          add_dependency(name)
+        end
       end
 
       def priority
         @source.priority
-      end
-
-      def satisfied_by?(node)
-        if @constraints.key? node.name
-          @constraints[node.name] === node.version
-        else
-          false
-        end
       end
 
       def <=>(other)
