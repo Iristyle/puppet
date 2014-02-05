@@ -181,6 +181,7 @@ module Puppet::ModuleTool::Shared
   def add_requirements_constraints_to_graph(graph)
     graph.add_graph_constraint('PE Version') do |nodes|
       nodes.all? do |node|
+        node.is_a?(Puppet::ModuleTool::InstalledModules::ModuleRelease) ||
         Puppet::ModuleTool.meets_all_pe_requirements(node.metadata)
       end
     end
