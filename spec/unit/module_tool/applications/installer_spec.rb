@@ -128,30 +128,49 @@ describe Puppet::ModuleTool::Applications::Installer do
       end
 
       context 'that are already installed' do
-        before { preinstall('pmtacceptance-stdlib', '4.1.0') }
-
-        it 'installs only the specified module' do
-          subject.should include :result => :success
-          graph_should_include 'pmtacceptance-apache', nil => v('0.10.0')
-          graph_should_include 'pmtacceptance-stdlib', :path => primary_dir
-        end
-
-        context '(outdated but suitable version)' do
-          before { preinstall('pmtacceptance-stdlib', '2.4.0') }
+        context 'and satisfied' do
+          before { preinstall('pmtacceptance-stdlib', '4.1.0') }
 
           it 'installs only the specified module' do
             subject.should include :result => :success
             graph_should_include 'pmtacceptance-apache', nil => v('0.10.0')
-            graph_should_include 'pmtacceptance-stdlib', v('2.4.0') => v('2.4.0'), :path => primary_dir
+            graph_should_include 'pmtacceptance-stdlib', :path => primary_dir
+          end
+
+          context '(outdated but suitable version)' do
+            before { preinstall('pmtacceptance-stdlib', '2.4.0') }
+
+            it 'installs only the specified module' do
+              subject.should include :result => :success
+              graph_should_include 'pmtacceptance-apache', nil => v('0.10.0')
+              graph_should_include 'pmtacceptance-stdlib', v('2.4.0') => v('2.4.0'), :path => primary_dir
+            end
+          end
+
+          context '(outdated and unsuitable version)' do
+            before { preinstall('pmtacceptance-stdlib', '1.0.0') }
+
+            it 'installs a version that is compatible with the installed dependencies' do
+              subject.should include :result => :success
+              graph_should_include 'pmtacceptance-apache', nil => v('0.0.4')
+              graph_should_include 'pmtacceptance-stdlib', nil
+            end
           end
         end
 
-        context '(outdated and unsuitable version)' do
-          before { preinstall('pmtacceptance-stdlib', '1.0.0') }
+        context 'but not satisfied' do
+          let(:module) { 'pmtacceptance-keystone' }
 
-          it 'installs a version that is compatible with the installed dependencies' do
+          def options
+            super.merge(:version => '2.0.0')
+          end
+
+          before { preinstall('pmtacceptance-mysql', '2.1.0') }
+
+          it 'installs only the specified module' do
             subject.should include :result => :success
-            graph_should_include 'pmtacceptance-apache', nil => v('0.0.4')
+            graph_should_include 'pmtacceptance-keystone', nil => v('2.0.0')
+            graph_should_include 'pmtacceptance-mysql', v('2.1.0') => v('2.1.0')
             graph_should_include 'pmtacceptance-stdlib', nil
           end
         end

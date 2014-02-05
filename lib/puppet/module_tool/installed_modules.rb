@@ -54,16 +54,20 @@ module Puppet::ModuleTool
         name = mod.forge_name.tr('/', '-')
         version = Semantic::Version.parse(mod.version)
 
+        super(source, name, version, {})
+
         if mod.dependencies
-          dependencies = mod.dependencies.map do |dep|
+          mod.dependencies.each do |dep|
             range = dep['version_requirement'] || dep['versionRequirement'] || '>=0'
             range = Semantic::VersionRange.parse(range) rescue Semantic::VersionRange::EMPTY_RANGE
-            [ dep['name'].tr('/', '-'), range ]
-          end
-          dependencies = Hash[dependencies]
-        end
 
-        super(source, name, version, dependencies || {})
+            dep.tap do |dep|
+              add_constraint('initialize', dep['name'].tr('/', '-'), range.to_s) do |node|
+                range === node.version
+              end
+            end
+          end
+        end
       end
 
       def install_dir
