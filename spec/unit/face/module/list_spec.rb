@@ -175,5 +175,48 @@ describe "puppet module list" do
         #{@modpath2} (no modules installed)
         HEREDOC
     end
+
+    it "should warn about missing dependencies" do
+      PuppetSpec::Modules.create('depender', @modpath1, :metadata => {
+        :version => '1.0.0',
+        :dependencies => [{
+          "version_requirement" => ">= 0.0.5",
+          "name"                => "puppetlabs/dependable"
+        }]
+      })
+
+      warning_expectations = [
+        regexp_matches(/Missing dependency 'puppetlabs-dependable'/),
+        regexp_matches(/'puppetlabs-depender' \(v1\.0\.0\) requires 'puppetlabs-dependable' \(>= 0\.0\.5\)/)
+      ]
+
+      Puppet.expects(:warning).with(all_of(*warning_expectations))
+
+      Puppet::Face[:module, :current].list_when_rendering_console(
+        Puppet::Face[:module, :current].list, {:tree => true}
+      )
+    end
+
+    it "should warn about out of range dependencies" do
+      PuppetSpec::Modules.create('dependable', @modpath1, :metadata => { :version => '0.0.1'})
+      PuppetSpec::Modules.create('depender', @modpath1, :metadata => {
+        :version => '1.0.0',
+        :dependencies => [{
+          "version_requirement" => ">= 0.0.5",
+          "name"                => "puppetlabs/dependable"
+        }]
+      })
+
+      warning_expectations = [
+        regexp_matches(/Module 'puppetlabs-dependable' \(v0\.0\.1\) fails to meet some dependencies/),
+        regexp_matches(/'puppetlabs-depender' \(v1\.0\.0\) requires 'puppetlabs-dependable' \(>= 0\.0\.5\)/)
+      ]
+
+      Puppet.expects(:warning).with(all_of(*warning_expectations))
+
+      Puppet::Face[:module, :current].list_when_rendering_console(
+        Puppet::Face[:module, :current].list, {:tree => true}
+      )
+    end
   end
 end
