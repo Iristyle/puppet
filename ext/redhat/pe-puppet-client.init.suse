@@ -68,7 +68,7 @@ case "$1" in
 
         # startproc should return 0, even if service is
         # already running to match LSB spec.
-        startproc -p ${pidfile} $puppetd ${PUPPET_OPTS} ${PUPPET_EXTRA_OPTS} && touch ${lockfile}
+        startproc -w -p ${pidfile} $puppetd ${PUPPET_OPTS} ${PUPPET_EXTRA_OPTS} && touch ${lockfile}
         # Remember status and be verbose
         rc_status -v
         ;;
