@@ -70,78 +70,8 @@ Puppet::Face.define(:module, '1.0.0') do
       Puppet[:modulepath] = options[:modulepath] if options[:modulepath]
       environment = Puppet::Node::Environment.new(options[:environment])
 
-      error_types = {
-        :non_semantic_version => {
-          :title => "Non semantic version dependency"
-        },
-        :missing => {
-          :title => "Missing dependency"
-        },
-        :version_mismatch => {
-          :title => "Module '%s' (v%s) fails to meet some dependencies:"
-        }
-      }
-
-      @unmet_deps = {}
-      error_types.each_key do |type|
-        @unmet_deps[type] = Hash.new do |hash, key|
-          hash[key] = { :errors => [], :parent => nil }
-        end
-      end
-
-      # Prepare the unmet dependencies for display on the console.
-      environment.modules.sort_by {|mod| mod.name}.each do |mod|
-        unmet_grouped = Hash.new { |h,k| h[k] = [] }
-        unmet_grouped = mod.unmet_dependencies.inject(unmet_grouped) do |acc, dep|
-          acc[dep[:reason]] << dep
-          acc
-        end
-        unmet_grouped.each do |type, deps|
-          unless deps.empty?
-            unmet_grouped[type].sort_by { |dep| dep[:name] }.each do |dep|
-              dep_name           = dep[:name].gsub('/', '-')
-              installed_version  = dep[:mod_details][:installed_version]
-              version_constraint = dep[:version_constraint]
-              parent_name        = dep[:parent][:name].gsub('/', '-')
-              parent_version     = dep[:parent][:version]
-
-              msg = "'#{parent_name}' (#{parent_version})"
-              msg << " requires '#{dep_name}' (#{version_constraint})"
-              @unmet_deps[type][dep[:name]][:errors] << msg
-              @unmet_deps[type][dep[:name]][:parent] = {
-                :name    => dep[:parent][:name],
-                :version => parent_version
-              }
-              @unmet_deps[type][dep[:name]][:version] = installed_version
-            end
-          end
-        end
-      end
-
-      # Display unmet dependencies by category.
-      error_display_order = [:non_semantic_version, :version_mismatch, :missing]
-      error_display_order.each do |type|
-        unless @unmet_deps[type].empty?
-          @unmet_deps[type].keys.sort_by {|dep| dep }.each do |dep|
-            name    = dep.gsub('/', '-')
-            title   = error_types[type][:title]
-            errors  = @unmet_deps[type][dep][:errors]
-            version = @unmet_deps[type][dep][:version]
-
-            msg = case type
-                  when :version_mismatch
-                    title % [name, version] + "\n"
-                  when :non_semantic_version
-                    title + " '#{name}' (v#{version}):\n"
-                  else
-                    title + " '#{name}':\n"
-                  end
-
-            errors.each { |error_string| msg << "  #{error_string}\n" }
-            Puppet.warning msg.chomp
-          end
-        end
-      end
+      warn_unmet_requirements(environment)
+      warn_unmet_dependencies(environment)
 
       environment.modulepath.each do |path|
         modules = modules_by_path[path]
@@ -168,6 +98,101 @@ Puppet::Face.define(:module, '1.0.0') do
       end
 
       output
+    end
+  end
+
+  def warn_unmet_requirements(environment)
+    environment.modules.sort_by {|mod| mod.name}.each do |mod|
+      if mod.has_metadata?
+        data = mod.metadata
+
+        unless Puppet::ModuleTool.meets_all_pe_requirements(data)
+          req = data['requirements'].detect do |x|
+            x['name'].upcase == 'PE' &&
+            !Puppet::ModuleTool.match_pe_range(x['version_requirement'])
+          end
+
+          msg = "'#{mod.name}' (v#{mod.version})"
+          msg << " requires Puppet Enterprise #{req['version_requirement']}"
+
+          Puppet.warning msg.chomp
+        end
+      end
+    end
+  end
+
+  def warn_unmet_dependencies(environment)
+    error_types = {
+      :non_semantic_version => {
+        :title => "Non semantic version dependency"
+      },
+      :missing => {
+        :title => "Missing dependency"
+      },
+      :version_mismatch => {
+        :title => "Module '%s' (v%s) fails to meet some dependencies:"
+      }
+    }
+
+    @unmet_deps = {}
+    error_types.each_key do |type|
+      @unmet_deps[type] = Hash.new do |hash, key|
+        hash[key] = { :errors => [], :parent => nil }
+      end
+    end
+
+    # Prepare the unmet dependencies for display on the console.
+    environment.modules.sort_by {|mod| mod.name}.each do |mod|
+      unmet_grouped = Hash.new { |h,k| h[k] = [] }
+      unmet_grouped = mod.unmet_dependencies.inject(unmet_grouped) do |acc, dep|
+        acc[dep[:reason]] << dep
+        acc
+      end
+      unmet_grouped.each do |type, deps|
+        unless deps.empty?
+          unmet_grouped[type].sort_by { |dep| dep[:name] }.each do |dep|
+            dep_name           = dep[:name].gsub('/', '-')
+            installed_version  = dep[:mod_details][:installed_version]
+            version_constraint = dep[:version_constraint]
+            parent_name        = dep[:parent][:name].gsub('/', '-')
+            parent_version     = dep[:parent][:version]
+
+            msg = "'#{parent_name}' (#{parent_version})"
+            msg << " requires '#{dep_name}' (#{version_constraint})"
+            @unmet_deps[type][dep[:name]][:errors] << msg
+            @unmet_deps[type][dep[:name]][:parent] = {
+              :name    => dep[:parent][:name],
+              :version => parent_version
+            }
+            @unmet_deps[type][dep[:name]][:version] = installed_version
+          end
+        end
+      end
+    end
+
+    # Display unmet dependencies by category.
+    error_display_order = [:non_semantic_version, :version_mismatch, :missing]
+    error_display_order.each do |type|
+      unless @unmet_deps[type].empty?
+        @unmet_deps[type].keys.sort_by {|dep| dep }.each do |dep|
+          name    = dep.gsub('/', '-')
+          title   = error_types[type][:title]
+          errors  = @unmet_deps[type][dep][:errors]
+          version = @unmet_deps[type][dep][:version]
+
+          msg = case type
+                when :version_mismatch
+                  title % [name, version] + "\n"
+                when :non_semantic_version
+                  title + " '#{name}' (v#{version}):\n"
+                else
+                  title + " '#{name}':\n"
+                end
+
+          errors.each { |error_string| msg << "  #{error_string}\n" }
+          Puppet.warning msg.chomp
+        end
+      end
     end
   end
 
@@ -260,18 +285,6 @@ Puppet::Face.define(:module, '1.0.0') do
             unmet_parent[:version] == "v#{parent.version}")
           str << '  ' + colorize(:red, 'invalid')
         end
-      end
-    end
-
-    if mod.has_metadata?
-      data = mod.metadata
-      unless Puppet::ModuleTool.meets_all_pe_requirements(data)
-        req = data['requirements'].first do |x|
-          x['name'].upcase == 'PE' &&
-          !Puppet::ModuleTool.match_pe_version(x['version_requirement'])
-        end
-
-        str << '  ' + colorize(:red, "[PE #{req['version_requirement']}]")
       end
     end
 
