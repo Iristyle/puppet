@@ -292,5 +292,39 @@ describe Puppet::ModuleTool::Applications::Upgrader do
         end
       end
     end
+
+    context 'when the module has a PE version requirement', :pe_specific => true do
+      let(:module) { 'pmtacceptance-pe_version' }
+      before { preinstall('pmtacceptance-pe_version', '1.0.0') }
+      before { Puppet.stubs(:enterprise?).returns(true) }
+
+      context 'when the PE version matches' do
+        before { Puppet.stubs(:pe_version).returns('1.3.0') }
+
+        it 'installs an appropriate version' do
+          subject.should include :result => :success
+          graph_should_include 'pmtacceptance-pe_version', v('1.0.0') => v('1.0.1')
+        end
+      end
+
+      context 'when the PE version does not match' do
+        before { Puppet.stubs(:pe_version).returns('3.3.0') }
+
+        it 'fails to install' do
+          subject.should include :result => :failure
+        end
+
+        context 'using --force' do
+          def options
+            super.merge(:force => true)
+          end
+
+          it 'installs an appropriate version' do
+            subject.should include :result => :success
+            graph_should_include 'pmtacceptance-pe_version', v('1.0.0') => v('1.0.1')
+          end
+        end
+      end
+    end
   end
 end

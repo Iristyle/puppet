@@ -321,5 +321,58 @@ describe Puppet::ModuleTool::Applications::Installer do
         end
       end
     end
+
+    context 'when a module with the same name is already installed' do
+      let(:module) { 'pmtacceptance-stdlib' }
+      before { preinstall('puppetlabs-stdlib', '4.1.0') }
+
+      it 'fails to install' do
+        subject.should include :result => :failure
+      end
+
+      context 'using --force' do
+        def options
+          super.merge(:force => true)
+        end
+
+        it 'installs an appropriate version' do
+          subject.should include :result => :success
+          graph_should_include 'pmtacceptance-stdlib', nil => v('4.1.0')
+        end
+      end
+    end
+
+    context 'when the module has a PE version requirement', :pe_specific => true do
+      let(:module) { 'pmtacceptance-pe_version' }
+      before { Puppet.stubs(:enterprise?).returns(true) }
+
+      context 'when the PE version matches' do
+        before { Puppet.stubs(:pe_version).returns('1.3.0') }
+
+        it 'installs an appropriate version' do
+          subject.should include :result => :success
+          graph_should_include 'pmtacceptance-pe_version', nil => v('1.0.1')
+        end
+      end
+
+      context 'when the PE version does not match' do
+        before { Puppet.stubs(:pe_version).returns('3.3.0') }
+
+        it 'fails to install' do
+          subject.should include :result => :failure
+        end
+
+        context 'using --force' do
+          def options
+            super.merge(:force => true)
+          end
+
+          it 'installs an appropriate version' do
+            subject.should include :result => :success
+            graph_should_include 'pmtacceptance-pe_version', nil => v('1.0.1')
+          end
+        end
+      end
+    end
   end
 end

@@ -22,8 +22,10 @@ class Puppet::Forge < Semantic::Dependency::Source
   USER_AGENT = "PMT/1.1.0 (v3; Net::HTTP)".freeze
 
   attr_reader :host, :repository
+  attr_accessor :filter_pe_versions
 
   def initialize(host = Puppet[:module_repository])
+    @filter_pe_versions = true
     @host = host
     @repository = Puppet::Forge::Repository.new(host, USER_AGENT)
   end
@@ -99,14 +101,17 @@ class Puppet::Forge < Semantic::Dependency::Source
       uri = response['pagination']['next']
     end
 
-    with_matched_requirements = releases.select do |x|
-      Puppet::ModuleTool.has_pe_requirement?(x.metadata) &&
-      Puppet::ModuleTool.meets_all_pe_requirements(x.metadata)
-    end
+    if @filter_pe_versions
+      with_matched_requirements = releases.select do |x|
+        Puppet::ModuleTool.has_pe_requirement?(x.metadata) &&
+        Puppet::ModuleTool.meets_all_pe_requirements(x.metadata)
+      end
 
-    if with_matched_requirements.any?
-      Puppet.debug "Found supported release for #{name}; excluding unsupported releases"
-      return with_matched_requirements
+      if with_matched_requirements.any?
+        Puppet.debug("Found release for #{name} compatible with PE (#{Puppet.pe_version}).")
+        Puppet.debug("Skipping releases which don't express PE compatibility.")
+        return with_matched_requirements
+      end
     end
 
     return releases
