@@ -102,6 +102,12 @@ module PuppetSpec
           'pmtacceptance-pe_version' => {
             "1.0.0" => { :requirements => [{ "name" => "pe", "version_requirement" => "1.x" }] },
             "1.0.1" => { :requirements => [{ "name" => "pe", "version_requirement" => "1.x" }] },
+            "2.0.0" => { :requirements => [{ "name" => "pe", "version_requirement" => "3.x" }] },
+          },
+          'pmtacceptance-depends_on_pe_version' => {
+            "1.0.0" => { "pmtacceptance-pe_version" => ">0.0.0" },
+            "1.0.1" => { "pmtacceptance-pe_version" => ">0.0.0" },
+            "2.0.0" => { "pmtacceptance-pe_version" => ">=2.0.0" },
           },
         }
 
