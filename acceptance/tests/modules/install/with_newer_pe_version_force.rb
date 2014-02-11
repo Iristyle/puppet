@@ -1,4 +1,4 @@
-test_name "puppet module install where module pe version greater than pe version using force flag"
+test_name "puppet module install - where module pe version requirement is greater than pe version installed (using force flag)"
 require 'puppet/acceptance/module_utils'
 extend Puppet::Acceptance::ModuleUtils
 

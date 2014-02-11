@@ -23,5 +23,6 @@ step "install compatible supported pe_version" do
   on(master, puppet("module install #{module_author}-#{module_name}")) do
     assert_module_installed_ui(stdout, module_author, module_name, module_version)
   end
+  # FIXME: add version assertion to _on_disk helper
   assert_module_installed_on_disk(master, distmoduledir, module_name)
 end
