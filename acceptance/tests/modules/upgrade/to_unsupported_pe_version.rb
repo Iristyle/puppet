@@ -26,5 +26,5 @@ end
 
 step "upgrade module" do
   on(master, puppet("module upgrade #{module_author}-#{module_name} --version #{module_upgrade_version}"), :acceptable_exit_codes => [1])
-  assert_module_installed_on_disk(master, distmoduledir, module_name)
+  assert_module_installed_on_disk(master, distmoduledir, module_name, module_version)
 end

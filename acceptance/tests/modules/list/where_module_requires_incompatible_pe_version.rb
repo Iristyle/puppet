@@ -19,10 +19,8 @@ end
 
 
 step "install module" do
-  # FIXME: write helper to lay down #{moduel_name}/metadata.json instead of
-  # using `module install` to put the module on disk for tests that have no
-  # direct dependency on `module install` functionality.
-  on(master, puppet("module install #{module_author}-#{module_name} --version #{module_version}"))
+  requirements = '[{ "name": "pe", "version_requirement": ">= 9.0.0" }]'
+  install_module_to_disk(master, distmoduledir, module_author, module_name, module_version, nil, requirements)
 end
 
 step "list module" do

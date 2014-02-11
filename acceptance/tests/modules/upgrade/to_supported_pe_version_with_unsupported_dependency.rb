@@ -21,8 +21,11 @@ end
 
 
 step "install module" do
-  on(master, puppet("module install #{module_author}-#{module_name} --version #{module_version}"))
-  on(master, puppet("module install #{module_author}-#{module_dependencies[0]} --version #{module_version}"))
+  dependencies = '[ { "name": "#{module_author}/#{module_dependencies[0]}", "version_requirement": "3.x" } ]'
+  install_module_to_disk(master, distmoduledir, module_author, module_name, module_version, dependencies)
+
+  requirements = '[{ "name": "pe", "version_requirement": ">= 3.0.0" }]'
+  install_module_to_disk(master, distmoduledir, module_author, module_name, "#{pe_major}.5.0", nil, requirements)
 end
 
 step "upgrade module" do
