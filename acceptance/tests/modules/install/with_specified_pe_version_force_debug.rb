@@ -4,6 +4,7 @@ extend Puppet::Acceptance::ModuleUtils
 
 module_author = "pmtacceptance"
 module_name   = "bad_pe_version"
+module_version = "#{get_pe_version(master)[:major]}.0.0"
 module_dependencies = []
 
 orig_installed_modules = get_installed_modules_for_hosts hosts
