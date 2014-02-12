@@ -178,6 +178,32 @@ module Puppet
         on host, %Q{[ ! -d "#{moduledir}/#{module_name}" ]}
       end
 
+      # Get Puppet Enterprise version number via facter
+      #
+      # Example return value:
+      #
+      # {
+      #   :full_version  => "1.2.3",
+      #   :major         => "1",
+      #   :minor         => "2",
+      #   :patch         => "3",
+      # }
+      #
+      # @param host [HOST] the host object to query version on
+      # @return [Hash] pe version number as an hash of strings
+      def get_pe_version ( host )
+        version = { :full_version => "", :major => "", :minor => "", :patch => "" }
+        res = fact_on(host, "puppetversion").match(/Puppet Enterprise (\d+\.\d+\.\d+)/)
+        if res
+          version[:full_version] = res[1]
+          arr = res[1].split('.')
+          version[:major] = arr[0]
+          version[:minor] = arr[1]
+          version[:patch] = arr[2]
+        end
+        return version
+      end
+
     end
   end
 end
