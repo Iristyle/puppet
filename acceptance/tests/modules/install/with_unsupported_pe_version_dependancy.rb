@@ -2,6 +2,8 @@ test_name "puppet module install for specified supported x.x.x pe version where 
 require 'puppet/acceptance/module_utils'
 extend Puppet::Acceptance::ModuleUtils
 
+distmoduledir = on(master, puppet("agent", "--configprint", "confdir")).stdout.chomp + "/modules"
+
 module_author = "pmtacceptance"
 module_name   = "depends_on_pe_version"
 module_dependencies = []
