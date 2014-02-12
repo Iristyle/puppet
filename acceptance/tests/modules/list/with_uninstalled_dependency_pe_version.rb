@@ -19,39 +19,8 @@ end
 
 
 step "install module" do
-  apply_manifest_on master, <<-PP
-file {
-  [
-    '#{distmoduledir}/#{module_name}
-  ]: ensure => directory,
-     recurse => true,
-     purge => true,
-     force => true;
-  '#{distmoduledir}/#{module_name}/metadata.json':
-    content => '{
-      "name": "pmtacceptance-pe_version",
-      "version": "3.0.0",
-      "source": "UNKNOWN",
-      "author": "pmtacceptance",
-      "license": "Apache License, Version 2.0",
-      "summary": "UNKNOWN",
-      "description": "UNKNOWN",
-      "project_page": "UNKNOWN",
-      "dependencies": [
-
-      ],
-      "types": [
-
-      ],
-      "requirements": [
-        {
-          "name": "pe",
-          "version_requirement": "1.x"
-        }
-      ],
-    }';
-}
-PP
+  requirements = '[ { "name": "pe", "version_requirement": "1.x" } ]'
+  install_module_to_disk(master, distmoduledir, module_author, module_name, module_version, nil, requirements)
 end
 
 step "list module" do
