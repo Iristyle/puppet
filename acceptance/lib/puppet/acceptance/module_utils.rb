@@ -216,7 +216,8 @@ file {
       "license": "MIT",
       "dependencies": #{dependencies},
       "requirements": #{requirements}
-    }';
+    }',
+    mode => 444;
 }
 PP
       end
