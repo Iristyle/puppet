@@ -141,6 +141,7 @@ module Puppet
       # @param host [HOST] the host object to make the remote call on
       # @param moduledir [String] the path where the module should be
       # @param module_name [String] the name portion of a module name
+      # @param module_version [String] the version of the module
       def assert_module_installed_on_disk ( host, moduledir, module_name, module_version = nil )
         # module directory should exist
         on host, %Q{[ -d "#{moduledir}/#{module_name}" ]}
@@ -213,6 +214,39 @@ module Puppet
         return version
       end
 
+      # Install a module to disk by writing a metadata.json file
+      #
+      # @param host [HOST] the host object to make the remote call on
+      # @param moduledir [String] the path where the module should be
+      # @param module_author [String] the author portion of a module name
+      # @param module_name [String] the name portion of a module name
+      # @param module_version [String] the version of the module
+      # @param dependencies [String] the dependencies of the module (must be
+      #   parseable JSON list of hashes)
+      # @param requirements [String] the requirement of the module (must be
+      #   parseable JSON list of hashes)
+      def install_module_to_disk( host, moduledir, module_author, module_name, module_version, dependencies = nil, requirements = nil )
+        dependencies ||= "[]"
+        requirements ||= "[]"
+        apply_manifest_on host, <<-PP
+file {
+  [
+    '#{moduledir}/#{module_name}',
+  ]: ensure => directory;
+  '#{moduledir}/#{module_name}/metadata.json':
+    content => '{
+      "name": "#{module_author}-#{module_name}",
+      "version": "#{module_version}",
+      "source": "",
+      "author": "#{module_author}",
+      "license": "MIT",
+      "dependencies": #{dependencies},
+      "requirements": #{requirements}
+    }',
+    mode => 444;
+}
+PP
+      end
     end
   end
 end
