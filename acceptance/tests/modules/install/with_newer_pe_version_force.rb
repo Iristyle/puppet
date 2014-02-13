@@ -16,6 +16,6 @@ teardown do
 end
 
 step "install incompatible supported pe_version" do
-  on(master, puppet("module install #{module_author}-#{module_name} --force"), :acceptable_exit_codes => [1])
-  assert_module_not_installed_on_disk(master, distmoduledir, module_name)
+  on(master, puppet("module install #{module_author}-#{module_name} --force"))
+  assert_module_installed_on_disk(master, distmoduledir, module_name)
 end
