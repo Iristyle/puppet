@@ -1,9 +1,9 @@
-test_name "puppet module install specifying version using force flag and debug"
+test_name "puppet module install specifying version using debug"
 require 'puppet/acceptance/module_utils'
 extend Puppet::Acceptance::ModuleUtils
 
 module_author = "pmtacceptance"
-module_name   = "bad_pe_version"
+module_name   = "pe_version"
 module_version = "#{get_pe_version(master)[:major]}.0.0"
 module_dependencies = []
 
@@ -17,9 +17,9 @@ teardown do
 end
 
 step "install module" do
-  on(master, puppet("module install #{module_author}-#{module_name} --version #{module_version} --force --debug"), :acceptable_exit_codes => [1]) do |res|
-    assert_module_not_installed_on_disk(master, distmoduledir, module_name)
+  on(master, puppet("module install #{module_author}-#{module_name} --version #{module_version} --debug")) do |res|
     assert_match(/#{module_name} compatible with PE/, res.stdout)
     assert_match(/Skipping/, res.stdout)
+    assert_module_installed_on_disk(master, distmoduledir, module_name, module_version)
   end
 end
