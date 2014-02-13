@@ -25,8 +25,8 @@ step "install module" do
 end
 
 step "upgrade module" do
-  on(master, puppet("module upgrade #{module_author}-#{module_name} --version #{module_upgrade_version} --force")) do
-    assert_module_installed_ui(master, distmoduledir, module_name, module_upgrade_version)
+  on(master, puppet("module upgrade #{module_author}-#{module_name} --version #{module_upgrade_version} --force")) do |res|
+    assert_module_installed_ui(res.stdout, module_author, module_name, module_upgrade_version)
   end
   assert_module_installed_on_disk(master, distmoduledir, module_name, module_upgrade_version)
 end
