@@ -26,7 +26,7 @@ end
 step "list module" do
   on(master, puppet("module list")) do |res|
     assert_match(/#{module_author}-#{module_name}/, res.stdout)
-    assert_match(/[wW]arn/, res.stdout)
-    assert_match(/requires Puppet Enterprise/, res.stdout)
+    assert_match(/[wW]arn/, res.stderr)
+    assert_match(/requires Puppet Enterprise/, res.stderr)
   end
 end
