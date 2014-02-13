@@ -124,15 +124,16 @@ module Puppet
       #     the installed module
       def assert_module_installed_ui ( stdout, module_author, module_name, module_version = nil, compare_op = nil )
         valid_compare_ops = {'==' => 'equal to', '>' => 'greater than', '<' => 'less than'}
+        unless valid_compare_ops.include? compare_op
+          compare_op = '=='
+        end
         assert_match(/#{module_author}-#{module_name}/, stdout,
               "Notice that module '#{module_author}-#{module_name}' was installed was not displayed")
         if module_version
           /#{module_author}-#{module_name} \(.*v(\d+\.\d+\.\d+)/ =~ stdout
           installed_version = Regexp.last_match[1]
-          if valid_compare_ops.include? compare_op
-            assert_equal( true, semver_cmp(installed_version, module_version).send(compare_op, 0),
-              "Installed version '#{installed_version}' of '#{module_name}' was not #{valid_compare_ops[compare_op]} '#{module_version}'")
-          end
+          assert_equal( true, semver_cmp(installed_version, module_version).send(compare_op, 0),
+            "Installed version '#{installed_version}' of '#{module_name}' was not #{valid_compare_ops[compare_op]} '#{module_version}'")
         end
       end
 
