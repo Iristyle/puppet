@@ -13,9 +13,11 @@ module Puppet
   PEBuildFile = '/opt/puppet/pe_build'
 
   if File.readable? PEBuildFile and !File.zero? PEBuildFile
-    PUPPETVERSION = "3.4.2 (Puppet Enterprise #{File.new(PEBuildFile).gets.chomp})"
+    PEVERSION = File.new(PEBuildFile).gets.chomp
+    PUPPETVERSION = "3.4.2 (Puppet Enterprise #{PEVERSION})"
   elsif File.readable? PEVersionFile and !File.zero? PEVersionFile
-    PUPPETVERSION = "3.4.2 (Puppet Enterprise #{File.new(PEVersionFile).gets.chomp})"
+    PEVERSION = File.new(PEVersionFile).gets.chomp
+    PUPPETVERSION = "3.4.2 (Puppet Enterprise #{PEVERSION})"
   else
     PUPPETVERSION = '3.4.2'
   end
@@ -81,6 +83,14 @@ module Puppet
 
   def self.version=(version)
     @puppet_version = version
+  end
+
+  def self.enterprise?
+    defined? PEVERSION
+  end
+
+  def self.pe_version
+    PEVERSION
   end
 
   ##

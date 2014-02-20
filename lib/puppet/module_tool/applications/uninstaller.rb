@@ -22,6 +22,7 @@ module Puppet::ModuleTool
         begin
           find_installed_module
           validate_module
+
           FileUtils.rm_rf(@installed.first.path, :secure => true)
 
           results[:affected_modules] = @installed
@@ -86,20 +87,22 @@ module Puppet::ModuleTool
       def validate_module
         mod = @installed.first
 
-        if !@options[:force] && mod.has_metadata? && mod.has_local_changes?
-          raise LocalChangesError,
-            :action            => :uninstall,
-            :module_name       => (mod.forge_name || mod.name).gsub('/', '-'),
-            :requested_version => @options[:version],
-            :installed_version => mod.version
-        end
+        if !@options[:force] && mod.has_metadata?
+          if mod.has_local_changes?
+            raise LocalChangesError,
+              :action            => :uninstall,
+              :module_name       => (mod.forge_name || mod.name).gsub('/', '-'),
+              :requested_version => @options[:version],
+              :installed_version => mod.version
+            end
 
-        if !@options[:force] && !mod.required_by.empty?
-          raise ModuleIsRequiredError,
-            :module_name       => (mod.forge_name || mod.name).gsub('/', '-'),
-            :required_by       => mod.required_by,
-            :requested_version => @options[:version],
-            :installed_version => mod.version
+          if !mod.required_by.empty?
+            raise ModuleIsRequiredError,
+              :module_name       => (mod.forge_name || mod.name).gsub('/', '-'),
+              :required_by       => mod.required_by,
+              :requested_version => @options[:version],
+              :installed_version => mod.version
+          end
         end
       end
     end

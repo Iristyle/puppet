@@ -124,15 +124,16 @@ module Puppet
       #     the installed module
       def assert_module_installed_ui ( stdout, module_author, module_name, module_version = nil, compare_op = nil )
         valid_compare_ops = {'==' => 'equal to', '>' => 'greater than', '<' => 'less than'}
+        unless valid_compare_ops.include? compare_op
+          compare_op = '=='
+        end
         assert_match(/#{module_author}-#{module_name}/, stdout,
               "Notice that module '#{module_author}-#{module_name}' was installed was not displayed")
-        if version
+        if module_version
           /#{module_author}-#{module_name} \(.*v(\d+\.\d+\.\d+)/ =~ stdout
           installed_version = Regexp.last_match[1]
-          if valid_compare_ops.include? compare_op
-            assert_equal( true, semver_cmp(installed_version, module_version).send(compare_op, 0),
-              "Installed version '#{installed_version}' of '#{module_name}' was not #{valid_compare_ops[compare_op]} '#{module_version}'")
-          end
+          assert_equal( true, semver_cmp(installed_version, module_version).send(compare_op, 0),
+            "Installed version '#{installed_version}' of '#{module_name}' was not #{valid_compare_ops[compare_op]} '#{module_version}'")
         end
       end
 
@@ -141,7 +142,8 @@ module Puppet
       # @param host [HOST] the host object to make the remote call on
       # @param moduledir [String] the path where the module should be
       # @param module_name [String] the name portion of a module name
-      def assert_module_installed_on_disk ( host, moduledir, module_name )
+      # @param module_version [String] the version of the module
+      def assert_module_installed_on_disk ( host, moduledir, module_name, module_version = nil )
         # module directory should exist
         on host, %Q{[ -d "#{moduledir}/#{module_name}" ]}
 
@@ -167,6 +169,15 @@ module Puppet
               "bad permissions for '#{line[/\S+$/]}' - expected 444/755, #{owner}, #{group}"
           end
         end
+
+        # If specified, module version on disk should match version given.
+        if module_version
+          on host, %Q{cat "#{moduledir}/#{module_name}/metadata.json"} do |res|
+            p = JSON.parse(res.stdout)
+            installed_version = p['version']
+            assert_equal(module_version, installed_version)
+          end
+        end
       end
 
       # Assert that a module is not installed on disk.
@@ -178,6 +189,65 @@ module Puppet
         on host, %Q{[ ! -d "#{moduledir}/#{module_name}" ]}
       end
 
+      # Get Puppet Enterprise version number via facter
+      #
+      # Example return value:
+      #
+      # {
+      #   :full_version  => "1.2.3",
+      #   :major         => "1",
+      #   :minor         => "2",
+      #   :patch         => "3",
+      # }
+      #
+      # @param host [HOST] the host object to query version on
+      # @return [Hash] pe version number as an hash of strings
+      def get_pe_version ( host )
+        version = { :full_version => "", :major => "", :minor => "", :patch => "" }
+        res = fact_on(host, "puppetversion").match(/Puppet Enterprise (\d+\.\d+\.\d+)/)
+        if res
+          version[:full_version] = res[1]
+          arr = res[1].split('.')
+          version[:major] = arr[0]
+          version[:minor] = arr[1]
+          version[:patch] = arr[2]
+        end
+        return version
+      end
+
+      # Install a module to disk by writing a metadata.json file
+      #
+      # @param host [HOST] the host object to make the remote call on
+      # @param moduledir [String] the path where the module should be
+      # @param module_author [String] the author portion of a module name
+      # @param module_name [String] the name portion of a module name
+      # @param module_version [String] the version of the module
+      # @param dependencies [String] the dependencies of the module (must be
+      #   parseable JSON list of hashes)
+      # @param requirements [String] the requirement of the module (must be
+      #   parseable JSON list of hashes)
+      def install_module_to_disk( host, moduledir, module_author, module_name, module_version, dependencies = nil, requirements = nil )
+        dependencies ||= "[]"
+        requirements ||= "[]"
+        apply_manifest_on host, <<-PP
+file {
+  [
+    '#{moduledir}/#{module_name}',
+  ]: ensure => directory;
+  '#{moduledir}/#{module_name}/metadata.json':
+    content => '{
+      "name": "#{module_author}-#{module_name}",
+      "version": "#{module_version}",
+      "source": "",
+      "author": "#{module_author}",
+      "license": "MIT",
+      "dependencies": #{dependencies},
+      "requirements": #{requirements}
+    }',
+    mode => 444;
+}
+PP
+      end
     end
   end
 end

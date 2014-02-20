@@ -425,7 +425,7 @@ module Puppet
   )
   Puppet.define_settings(:module_tool,
     :module_repository  => {
-      :default  => 'https://forge.puppetlabs.com',
+      :default  => 'https://forgeapi.puppetlabs.com',
       :desc     => "The module repository",
     },
     :module_working_dir => {
@@ -1465,7 +1465,11 @@ EOT
         separator is ':', and the Windows path separator is ';'.)",
 
       :call_hook => :on_initialize_and_write, # Call our hook with the default value, so we always get the value added to facter.
-      :hook => proc { |value| Facter.search(value) if Facter.respond_to?(:search) }}
+      :hook => proc do |value|
+        paths = value.split(File::PATH_SEPARATOR)
+        Facter.search(*paths)
+      end
+    }
   )
 
 

@@ -3,6 +3,7 @@
 require 'pathname'
 require 'fileutils'
 require 'puppet/util/colors'
+require 'puppet/version'
 
 module Puppet
   module ModuleTool
@@ -90,16 +91,18 @@ module Puppet
 
     def self.build_tree(mods, dir)
       mods.each do |mod|
-        version_string = mod[:version][:vstring].sub(/^(?!v)/, 'v')
+        version_string = mod[:version].to_s.sub(/^(?!v)/, 'v')
 
         if mod[:action] == :upgrade
-          previous_version = mod[:previous_version].sub(/^(?!v)/, 'v')
+          previous_version = mod[:previous_version].to_s.sub(/^(?!v)/, 'v')
           version_string = "#{previous_version} -> #{version_string}"
         end
 
-        mod[:text] = "#{mod[:module]} (#{colorize(:cyan, version_string)})"
-        mod[:text] += " [#{mod[:path]}]" unless mod[:path] == dir
-        build_tree(mod[:dependencies], dir)
+        mod[:text] = "#{mod[:release].name} (#{colorize(:cyan, version_string)})"
+        mod[:text] += " [#{mod[:path]}]" unless mod[:path].to_s == dir.to_s
+
+        deps = (mod[:dependencies] || []).sort_by! { |x| x[:release].name }
+        build_tree(deps, dir)
       end
     end
 
@@ -131,6 +134,29 @@ module Puppet
         options[:target_dir] =
           File.expand_path(options[:modulepath].split(sep).first)
       end
+    end
+
+    def self.has_pe_requirement?(metadata)
+      requirements = metadata['requirements'] || []
+      requirements.any? { |req| req['name'].upcase == 'PE' }
+    end
+
+    def self.meets_all_pe_requirements(metadata)
+      return true unless Puppet.enterprise?
+
+      requirements = metadata['requirements'] || []
+      pe_requirements = requirements.select { |req| req['name'].upcase == 'PE' }
+      pe_versions = pe_requirements.map { |req| req['version_requirement'] }
+
+      pe_versions.all? { |range| match_pe_range(range) }
+    end
+
+    def self.match_pe_range(range)
+      return false unless Puppet.enterprise?
+
+      version = Semantic::Version.parse(Puppet.pe_version)
+      range   = Semantic::VersionRange.parse(range)
+      range.include?(version)
     end
   end
 end
