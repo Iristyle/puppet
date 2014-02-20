@@ -19,23 +19,6 @@ end
 # The 'environment' global variable represents the current environment that's
 # being used in the compiler.
 #
-# ### `$known_resource_types`
-#
-# The 'known_resource_types' global variable represents a singleton instance
-# of the Puppet::Resource::TypeCollection class. The variable is discarded
-# and regenerated if it is accessed by an environment that doesn't match the
-# environment of the 'known_resource_types'
-#
-# This behavior of discarding the known_resource_types every time the
-# environment changes is not ideal. In the best case this can cause valid data
-# to be discarded and reloaded. If Puppet is being used with numerous
-# environments then this penalty will be repeatedly incurred.
-#
-# In the worst case (#15106) demonstrates that if a different environment is
-# accessed during catalog compilation, for whatever reason, the
-# known_resource_types can be discarded which loses information that cannot
-# be recovered and can cause a catalog compilation to completely fail.
-#
 # ## The root environment
 #
 # In addition to normal environments that are defined by the user,there is a
@@ -204,33 +187,11 @@ class Puppet::Node::Environment
   # @api public
   # @return [Puppet::Resource::TypeCollection] The current global TypeCollection
   def known_resource_types
-    # This makes use of short circuit evaluation to get the right thread-safe
-    # per environment semantics with an efficient most common cases; we almost
-    # always just return our thread's known-resource types.  Only at the start
-    # of a compilation (after our thread var has been set to nil) or when the
-    # environment has changed or when the known resource types have become stale
-    # do we delve deeper.
-    $known_resource_types = nil if $known_resource_types &&
-      ($known_resource_types.environment != self || !@known_resource_types_being_imported && $known_resource_types.stale?)
-    $known_resource_types ||=
-      if @known_resource_types.nil? or @known_resource_types.require_reparse?
-        #set the global variable $known_resource_types immediately as it will be queried
-        #resursively from the parser which would set it anyway, just executing more code in vain
-        @known_resource_types = $known_resource_types = Puppet::Resource::TypeCollection.new(self)
-
-        #avoid an infinite recursion (called from the parser) if Puppet[:filetimeout] is set to -1 and
-        #$known_resource_types.stale? returns always true; let's set a flag that we're importing
-        #so if this method is called recursively we'll skip testing the stale status
-        begin
-          @known_resource_types_being_imported = true
-          @known_resource_types.import_ast(perform_initial_import, '')
-        ensure
-          @known_resource_types_being_imported = false
-        end
-        @known_resource_types
-      else
-        @known_resource_types
-      end
+    if @known_resource_types.nil?
+      @known_resource_types = Puppet::Resource::TypeCollection.new(self)
+      @known_resource_types.import_ast(perform_initial_import(), '')
+    end
+    @known_resource_types
   end
 
   # Yields each modules' plugin directory if the plugin directory (modulename/lib)
@@ -346,13 +307,17 @@ class Puppet::Node::Environment
   def modules_by_path
     modules_by_path = {}
     modulepath.each do |path|
-      Dir.chdir(path) do
-        module_names = Dir.glob('*').select do |d|
-          FileTest.directory?(d) && (File.basename(d) =~ /\A\w+(-\w+)*\Z/)
+      if File.exists?(path)
+        Dir.chdir(path) do
+          module_names = Dir.glob('*').select do |d|
+            FileTest.directory?(d) && (File.basename(d) =~ /\A\w+(-\w+)*\Z/)
+          end
+          modules_by_path[path] = module_names.sort.map do |name|
+            Puppet::Module.new(name, File.join(path, name), self)
+          end
         end
-        modules_by_path[path] = module_names.sort.map do |name|
-          Puppet::Module.new(name, File.join(path, name), self)
-        end
+      else
+        modules_by_path[path] = []
       end
     end
     modules_by_path
@@ -386,24 +351,34 @@ class Puppet::Node::Environment
   # @return [Hash<String, Array<Hash<String, String>>>] See the method example
   #   for an explanation of the return value.
   def module_requirements
-    deps = {}
+    deps = Hash.new { |h, k| h[k.tr('/', '-')] if h.key? k.tr('/', '-') }
+
     modules.each do |mod|
       next unless mod.forge_name
       deps[mod.forge_name] ||= []
       mod.dependencies and mod.dependencies.each do |mod_dep|
-        deps[mod_dep['name']] ||= []
-        dep_details = {
+        dep_name = mod_dep['name'].tr('-', '/')
+        deps[dep_name] ||= []
+        deps[dep_name] << {
           'name'                => mod.forge_name,
           'version'             => mod.version,
           'version_requirement' => mod_dep['version_requirement']
         }
-        deps[mod_dep['name']] << dep_details
       end
     end
+
     deps.each do |mod, mod_deps|
-      deps[mod] = mod_deps.sort_by {|d| d['name']}
+      deps[mod] = mod_deps.sort_by { |d| d['name'] }
     end
+
     deps
+  end
+
+
+  def check_for_reparse
+    if @known_resource_types && @known_resource_types.require_reparse?
+      @known_resource_types = nil
+    end
   end
 
   # @return [String] The stringified value of the `name` instance variable
@@ -478,7 +453,7 @@ class Puppet::Node::Environment
     end
     parser.parse
   rescue => detail
-    known_resource_types.parse_failed = true
+    @known_resource_types.parse_failed = true
 
     msg = "Could not parse for environment #{self}: #{detail}"
     error = Puppet::Error.new(msg)

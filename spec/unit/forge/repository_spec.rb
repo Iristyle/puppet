@@ -6,9 +6,9 @@ require 'puppet/forge/cache'
 require 'puppet/forge/errors'
 
 describe Puppet::Forge::Repository do
-  let(:consumer_version) { "Test/1.0" }
-  let(:repository) { Puppet::Forge::Repository.new('http://fake.com', consumer_version) }
-  let(:ssl_repository) { Puppet::Forge::Repository.new('https://fake.com', consumer_version) }
+  let(:agent) { "Test/1.0" }
+  let(:repository) { Puppet::Forge::Repository.new('http://fake.com', agent) }
+  let(:ssl_repository) { Puppet::Forge::Repository.new('https://fake.com', agent) }
 
   it "retrieve accesses the cache" do
     path = '/module/foo.tar.gz'
@@ -18,10 +18,12 @@ describe Puppet::Forge::Repository do
   end
 
   it "retrieve merges forge URI and path specified" do
+    host = 'http://fake.com/test'
     path = '/module/foo.tar.gz'
-    repo_uri = 'http://fake.com/test'
-    repository = Puppet::Forge::Repository.new(repo_uri, consumer_version)
-    repository.cache.expects(:retrieve).with(URI.parse(repo_uri+path))
+    uri  = [ host, path ].join('')
+
+    repository = Puppet::Forge::Repository.new(host, agent)
+    repository.cache.expects(:retrieve).with(uri)
 
     repository.retrieve(path)
   end
@@ -32,7 +34,8 @@ describe Puppet::Forge::Repository do
     end
 
     it "returns the result object from the request" do
-      result = "the http response"
+      result = "#{Object.new}"
+
       performs_an_http_request result do |http|
         http.expects(:request).with(responds_with(:path, "the_path"))
       end
@@ -41,7 +44,7 @@ describe Puppet::Forge::Repository do
     end
 
     it 'returns the result object from a request with ssl' do
-      result = "the http response"
+      result = "#{Object.new}"
       performs_an_https_request result do |http|
         http.expects(:request).with(responds_with(:path, "the_path"))
       end
@@ -50,7 +53,7 @@ describe Puppet::Forge::Repository do
     end
 
     it 'return a valid exception when there is an SSL verification problem' do
-      performs_an_https_request "the http response" do |http|
+      performs_an_https_request "#{Object.new}" do |http|
         http.expects(:request).with(responds_with(:path, "the_path")).raises OpenSSL::SSL::SSLError.new("certificate verify failed")
       end
 
@@ -58,7 +61,7 @@ describe Puppet::Forge::Repository do
     end
 
     it 'return a valid exception when there is a communication problem' do
-      performs_an_http_request "the http response" do |http|
+      performs_an_http_request "#{Object.new}" do |http|
         http.expects(:request).with(responds_with(:path, "the_path")).raises SocketError
       end
 
@@ -68,17 +71,13 @@ describe Puppet::Forge::Repository do
     end
 
     it "sets the user agent for the request" do
-      performs_an_http_request do |http|
-        http.expects(:request).with() do |request|
-          puppet_version = /Puppet\/\d+\..*/
-          os_info = /\(.*\)/
-          ruby_version = /Ruby\/\d+\.\d+\.\d+(-p-?\d+)? \(\d{4}-\d{2}-\d{2}; .*\)/
+      path = 'the_path'
 
-          request["User-Agent"] =~ /^#{consumer_version} #{puppet_version} #{os_info} #{ruby_version}/
-        end
-      end
+      request = repository.get_request_object(path)
 
-      repository.make_http_request("the_path")
+      request['User-Agent'].should =~ /\b#{agent}\b/
+      request['User-Agent'].should =~ /\bPuppet\b/
+      request['User-Agent'].should =~ /\bRuby\b/
     end
 
     it "escapes the received URI" do
