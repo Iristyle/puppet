@@ -9,7 +9,7 @@ gpg_name: 'info@puppetlabs.com'
 gpg_key: '4BD6EC30'
 sign_tar: FALSE
 # a space separated list of mock configs
-final_mocks: 'pupent-3.2-el4-i386 pupent-3.2-el5-i386 pupent-3.2-el6-i386 pupent-3.2-sles11-i386'
+final_mocks: 'pupent-3.3-el4-i386 pupent-3.3-el5-i386 pupent-3.3-el6-i386 pupent-3.3-eos4-i386 pupent-3.3-sles11-i386'
 yum_host: 'neptune.delivery.puppetlabs.net'
 yum_repo_path: '/opt/pe_dev'
 build_gem: FALSE
