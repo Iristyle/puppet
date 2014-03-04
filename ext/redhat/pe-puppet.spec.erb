@@ -108,11 +108,19 @@ Requires:       %{?name_prefix}ruby-shadow
 Requires:       shadow-utils
 %endif
 
-
-
 Requires:       %{?name_prefix}facter >= %{facter_version}
+Requires:       %{?name_prefix}hiera
 Requires:       %{?name_prefix}ruby
+Requires:       %{?name_prefix}ruby-augeas
 Requires:       %{?name_prefix}ruby-rgen
+# No SELinux in SUSE or RHEL4
+%if 0%{?rhel} >= 5 || 0%{?eos}
+Requires:       %{?name_prefix}ruby-selinux
+%endif
+# No rubygem-net-ssh in RHEL4 or EOS
+%if 0%{?suse_version} || 0%{?rhel} >= 5
+Requires:       %{?name_prefix}rubygem-net-ssh
+%endif
 
 Obsoletes:      pe-rubygem-puppet-module <= 0.3.5
 Obsoletes:      pe-rubygem(puppet-module) <= 0.3.5
