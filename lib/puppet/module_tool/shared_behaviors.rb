@@ -165,6 +165,10 @@ module Puppet::ModuleTool::Shared
     options[:force]
   end
 
+  def ignore_incompatibility?
+    forced? || options[:ignore_incompatibility]
+  end
+
   def add_module_name_constraints_to_graph(graph)
     # Puppet modules are installed by "module name", but resolved by
     # "full name" (including namespace).  So that we don't run into
