@@ -108,8 +108,8 @@ class Puppet::Forge < Semantic::Dependency::Source
       end
 
       if with_matched_requirements.any?
-        Puppet.debug("Found release for #{name} compatible with PE (#{Puppet.pe_version}).")
-        Puppet.debug("Skipping releases which don't express PE compatibility.")
+        Puppet.notice("Found release for #{name} compatible with PE (#{Puppet.pe_version}).")
+        Puppet.notice("Skipping releases which don't express PE compatibility.")
         return with_matched_requirements
       end
     end
