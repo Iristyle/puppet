@@ -88,6 +88,13 @@ describe Puppet::Forge::ModuleRelease do
     end
   end
 
+  describe '#tmpfile' do
+    it 'should be opened in binary mode' do
+      Puppet::Forge::Cache.stubs(:base_path).returns(Dir.tmpdir)
+      release.send(:tmpfile).binmode?.should be_true
+    end
+  end
+
   describe '#download' do
     it 'should call make_http_request with correct params' do
       # valid URI comes from file_uri in JSON blob above

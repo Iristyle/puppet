@@ -182,7 +182,7 @@ class Puppet::Forge < Semantic::Dependency::Source
     end
 
     def tmpfile
-      @file ||= Tempfile.new(name, Puppet::Forge::Cache.base_path, :encoding => 'ascii-8bit')
+      @file ||= Tempfile.new(name, Puppet::Forge::Cache.base_path).binmode
     end
 
     def download(uri, destination)
