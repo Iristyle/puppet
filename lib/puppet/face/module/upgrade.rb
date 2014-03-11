@@ -46,7 +46,7 @@ Puppet::Face.define(:module, '1.0.0') do
       EOT
     end
 
-    option "--ignore-incompatibility" do
+    option "--ignore-requirements" do
       summary "Do not filter out incompatible versions"
       description <<-EOT
         Do not filter out incompatible versions.  (Implied by --force.)

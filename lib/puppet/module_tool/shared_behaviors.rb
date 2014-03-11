@@ -165,8 +165,8 @@ module Puppet::ModuleTool::Shared
     options[:force]
   end
 
-  def ignore_incompatibility?
-    forced? || options[:ignore_incompatibility]
+  def ignore_requirements?
+    forced? || options[:ignore_requirements]
   end
 
   def add_module_name_constraints_to_graph(graph)

@@ -314,9 +314,9 @@ describe Puppet::ModuleTool::Applications::Upgrader do
           subject.should include :result => :failure
         end
 
-        context 'using --ignore-incompatibility' do
+        context 'using --ignore-requirements' do
           def options
-            super.merge(:ignore_incompatibility => true)
+            super.merge(:ignore_requirements => true)
           end
 
           it 'installs an appropriate version' do
