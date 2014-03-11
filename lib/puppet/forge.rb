@@ -108,8 +108,8 @@ class Puppet::Forge < Semantic::Dependency::Source
       end
 
       if with_matched_requirements.any?
-        Puppet.notice("Found release for #{name} compatible with PE (#{Puppet.pe_version}).")
-        Puppet.notice("Skipping releases which don't express PE compatibility.")
+        Puppet.notice("Found at least one version of #{name} compatible with PE (#{Puppet.pe_version});")
+        Puppet.notice("Skipping versions which don't express PE compatibility. To install\nthe most recent version of the module regardless of compatibility\nwith PE, use the '--ignore-requirements' flag.")
         return with_matched_requirements
       end
     end
