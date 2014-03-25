@@ -473,6 +473,12 @@ describe Puppet::Settings do
         @settings[:why_so_serious] = "foo"
       }.should raise_error(ArgumentError, /unknown configuration parameter/)
     end
+
+    it "allows overriding cli args based on the cli-set value" do
+      @settings.handlearg("--myval", "cliarg")
+      @settings.set_value(:myval, "modified #{@settings[:myval]}", :cli)
+      expect(@settings[:myval]).to eq("modified cliarg")
+    end
   end
 
   describe "when returning values" do
@@ -507,6 +513,20 @@ describe Puppet::Settings do
     it "should provide a mechanism for returning set values" do
       @settings[:one] = "other"
       @settings[:one].should == "other"
+    end
+
+    it "setting a value to nil causes it to return to its default" do
+      default_values = { :one => "skipped value" }
+      [:logdir, :confdir, :vardir].each do |key|
+        default_values[key] = 'default value'
+      end
+      @settings.define_settings :main, PuppetSpec::Settings::TEST_APP_DEFAULT_DEFINITIONS
+      @settings.initialize_app_defaults(default_values)
+      @settings[:one] = "value will disappear"
+
+      @settings[:one] = nil
+
+      @settings[:one].should == "ONE"
     end
 
     it "should interpolate default values for other parameters into returned parameter values" do
@@ -923,6 +943,27 @@ describe Puppet::Settings do
 
       hook_invoked.should be_true
       @settings[:deferred].should eq File.expand_path('/path/to/confdir/goose')
+    end
+
+    it "does not require the value for a setting without a hook to resolve during global setup" do
+      hook_invoked = false
+      @settings.define_settings :section, :can_cause_problems  => {:desc => '' }
+
+      @settings.define_settings(:main,
+        :logdir       => { :type => :directory, :default => nil, :desc => "logdir" },
+        :confdir      => { :type => :directory, :default => nil, :desc => "confdir" },
+        :vardir       => { :type => :directory, :default => nil, :desc => "vardir" })
+
+      text = <<-EOD
+      [main]
+      can_cause_problems=$confdir/goose
+      EOD
+
+      @settings.stubs(:read_file).returns(text)
+      @settings.initialize_global_settings
+      @settings.initialize_app_defaults(:logdir => '/path/to/logdir', :confdir => '/path/to/confdir', :vardir => '/path/to/vardir')
+
+      @settings[:can_cause_problems].should eq File.expand_path('/path/to/confdir/goose')
     end
 
     it "should allow empty values" do

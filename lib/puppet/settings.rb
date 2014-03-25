@@ -517,7 +517,7 @@ class Puppet::Settings
     end
 
     # Call any hooks we should be calling.
-    @config.values.each do |setting|
+    @config.values.select(&:has_hook?).each do |setting|
       value_sets_for(env, self.preferred_run_mode).each do |source|
         if source.include?(setting.name)
           # We still have to use value to retrieve the value, since
@@ -761,9 +761,9 @@ class Puppet::Settings
   end
 
   def set_value(param, value, type, options = {})
-    Puppet.deprecation_warning("Puppet.settings.set_value is deprecated. Use Puppet[]= instead.")
     if @value_sets[type]
       @value_sets[type].set(param, value)
+      unsafe_flush_cache
     end
   end
 
@@ -824,14 +824,18 @@ class Puppet::Settings
       # Collect the settings that need to have their hooks called immediately.
       # We have to collect them so that we can be sure we're fully initialized before
       # the hook is called.
-      if tryconfig.call_hook_on_define?
-        call << tryconfig
-      elsif tryconfig.call_hook_on_initialize?
-        @hooks_to_call_on_application_initialization << tryconfig
+      if tryconfig.has_hook?
+        if tryconfig.call_hook_on_define?
+          call << tryconfig
+        elsif tryconfig.call_hook_on_initialize?
+          @hooks_to_call_on_application_initialization << tryconfig
+        end
       end
     end
 
-    call.each { |setting| setting.handle(self.value(setting.name)) }
+    call.each do |setting|
+      setting.handle(self.value(setting.name))
+    end
   end
 
   # Convert the settings we manage into a catalog full of resources that model those settings.
@@ -943,8 +947,7 @@ Generated on #{Time.now}.
     ChainedValues.new(
       section,
       environment,
-      value_sets_for(environment, section) +
-      [ValuesFromDefaults.new(@config)],
+      value_sets_for(environment, section),
       @config)
   end
 
@@ -1129,12 +1132,17 @@ Generated on #{Time.now}.
     # @return [Object] The configuration setting value or nil if the setting is not known
     # @api public
     def lookup(name)
-      @value_sets.each do |set|
-        if set.include?(name)
-          return set.lookup(name)
+      set = @value_sets.find do |set|
+        set.include?(name)
+      end
+      if set
+        value = set.lookup(name)
+        if !value.nil?
+          return value
         end
       end
-      nil
+
+      @defaults[name].default
     end
 
     # Lookup the interpolated value. All instances of `$name` in the value will
@@ -1190,20 +1198,6 @@ Generated on #{Time.now}.
     end
   end
 
-  class ValuesFromDefaults
-    def initialize(defaults)
-      @defaults = defaults
-    end
-
-    def include?(name)
-      @defaults.include?(name)
-    end
-
-    def lookup(name)
-      @defaults[name].default
-    end
-  end
-
   class Values
     def initialize(name, defaults)
       @name = name
@@ -1221,7 +1215,9 @@ Generated on #{Time.now}.
           "Attempt to assign a value to unknown configuration parameter #{name.inspect}"
       end
 
-      @defaults[name].handle(value)
+      if @defaults[name].has_hook?
+        @defaults[name].handle(value)
+      end
 
       @values[name] = value
     end
@@ -1242,7 +1238,10 @@ Generated on #{Time.now}.
     end
 
     def lookup(name)
-      @section.setting(name).value
+      setting = @section.setting(name)
+      if setting
+        setting.value
+      end
     end
   end
 end

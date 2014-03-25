@@ -176,6 +176,24 @@ describe "puppet module list" do
         HEREDOC
     end
 
+    it "should print both modules with and without metadata as a tree" do
+      modpath = tmpdir('modpath')
+      Puppet.settings[:modulepath] = modpath
+      PuppetSpec::Modules.create('nometadata', modpath)
+      PuppetSpec::Modules.create('metadata', modpath, :metadata => {:author => 'metaman'})
+
+      dependency_tree = Puppet::Face[:module, :current].list
+
+      output = Puppet::Face[:module, :current].
+        list_when_rendering_console(dependency_tree, { :tree => true })
+
+      output.should == <<-HEREDOC.gsub('        ', '')
+        #{modpath}
+        ├── metaman-metadata (\e[0;36mv9.9.9\e[0m)
+        └── nometadata (\e[0;36m???\e[0m)
+        HEREDOC
+    end
+
     it "should warn about missing dependencies" do
       PuppetSpec::Modules.create('depender', @modpath1, :metadata => {
         :version => '1.0.0',

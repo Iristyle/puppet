@@ -314,6 +314,17 @@ describe Puppet::ModuleTool::Applications::Upgrader do
           subject.should include :result => :failure
         end
 
+        context 'using --ignore-requirements' do
+          def options
+            super.merge(:ignore_requirements => true)
+          end
+
+          it 'installs an appropriate version' do
+            subject.should include :result => :success
+            graph_should_include 'pmtacceptance-pe_version', v('1.0.0') => v('2.0.0')
+          end
+        end
+
         context 'using --force' do
           def options
             super.merge(:force => true)

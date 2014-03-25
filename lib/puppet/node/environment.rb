@@ -371,6 +371,7 @@ class Puppet::Node::Environment
       deps[mod] = mod_deps.sort_by { |d| d['name'] }
     end
 
+    deps.default_proc = proc {}
     deps
   end
 

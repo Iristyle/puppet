@@ -40,9 +40,16 @@ Puppet::Face.define(:module, '1.0.0') do
     end
 
     option "--ignore-dependencies" do
-      summary "Do not attempt to install dependencies."
+      summary "Do not attempt to install dependencies"
       description <<-EOT
-        Do not attempt to install dependencies
+        Do not attempt to install dependencies.  (Implied by --force.)
+      EOT
+    end
+
+    option "--ignore-requirements" do
+      summary "Do not filter out incompatible versions"
+      description <<-EOT
+        Do not filter out incompatible versions.  (Implied by --force.)
       EOT
     end
 
