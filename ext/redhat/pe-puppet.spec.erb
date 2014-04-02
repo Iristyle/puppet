@@ -6,6 +6,8 @@
 %global rpmversion     <%= @rpmversion %>
 
 %global facter_version 1.6.0
+%global _with_systemd  0
+%global _with_sysvinit 0
 
 %if "%{_os}" == "aix"
   %{!?_aix: %global _aix 1}
@@ -14,6 +16,22 @@
 %if "%{dist}" == ".eos4"
   %{!?eos: %global eos 1}
 %endif
+
+# EL > 7 and SLES >= 12 use systemd
+%if 0%{?rhel} >= 7 || 0%{?sles_version} >= 12
+%global _with_systemd 1
+%endif
+
+%if 0%{?rhel} && 0%{?rhel} < 7
+%global _with_sysvinit 1
+%global _old_el        1
+%endif
+
+%if 0%{?sles_version} && 0%{?sles_version} < 12
+%global _with_sysvinit 1
+%global _old_sles      1
+%endif
+
 
 # macros required because of AIX old-n-bustedness
 %if 0%{?_aix}
@@ -25,13 +43,6 @@
 
 %else
   %global confdir      ext/redhat
-%endif
-
-%if 0%{?suse_version}
-  %global server_requires   aaa_base
-%endif
-%if 0%{?rhel} || 0%{?eos}
-  %global server_requires   chkconfig, initscripts
 %endif
 
 # Don't build the server package for el4 or aix
@@ -121,6 +132,16 @@ Requires:       %{?name_prefix}ruby-selinux
 %if 0%{?suse_version} || 0%{?rhel} >= 5
 Requires:       %{?name_prefix}rubygem-net-ssh
 %endif
+%if 0%{?_old_sles}
+Requires:       aaa_base
+%endif
+%if 0%{?_old_el}
+Requires:       chkconfig, initscripts
+%endif
+%if 0%{?_with_systemd}
+BuildRequires:  systemd
+Requires:       systemd
+%endif
 
 Obsoletes:      pe-rubygem-puppet-module <= 0.3.5
 Obsoletes:      pe-rubygem(puppet-module) <= 0.3.5
@@ -158,8 +179,6 @@ along with obviously discrete elements like packages, services, and files.
 Group:          System Environment/Base
 Summary:        Server for the puppet system management tool
 Requires:       %{?name_prefix}%{_name} = %{version}-%{release}
-
-Requires:       %{?server_requires}
 
 %description server
 Provides the central puppet server daemon which provides manifests to clients.
@@ -219,11 +238,15 @@ install -d -m0755 %{buildroot}%{_datadir}/%{_name}/modules
 install -d -m0755 %{buildroot}%{_localstatedir}/run/%{name}
 install -d -m0750 %{buildroot}%{_localstatedir}/log/%{name}
 
-%if 0%{?suse_version}
+%if 0%{?_old_sles}
 install -Dp -m0755 %{confdir}/%{name}-client.init.suse %{buildroot}%{_initrddir}/%{name}
 %endif
-%if 0%{?rhel} || 0%{?eos}
+%if 0%{?_old_el}
 install -Dp -m0755 %{confdir}/%{name}-client.init %{buildroot}%{_initrddir}/%{name}
+%endif
+%if 0%{?_with_systemd}
+install -d -m0755  %{buildroot}%{_unitdir}
+install -m0644 ext/systemd/%{name}.service %{buildroot}%{_unitdir}/
 %endif
 %if 0%{!?_aix:1}
 install -Dp -m0644 %{confdir}/%{name}-logrotate %{buildroot}%{_real_sysconfdir}/logrotate.d/%{name}
@@ -299,8 +322,13 @@ ln -sf %{_prefix}/bin/puppet %{buildroot}%{_symlinkdir}/puppet
 %dir %{_sysconfdir}/%{_name}
 %config(noreplace) %{_sysconfdir}/%{_name}/puppet.conf
 %config(noreplace) %{_sysconfdir}/%{_name}/auth.conf
-%if 0%{!?_aix:1}
+%if 0%{?_with_systemd}
+%{_unitdir}/%{name}.service
+%endif
+%if 0%{?_with_sysvinit}
 %{_initrddir}/%{name}
+%endif
+%if 0%{!?_aix:1}
 %config(noreplace) %{_real_sysconfdir}/logrotate.d/%{name}
 %endif
 %{_real_datadir}/vim/vimfiles/ftdetect/pe-puppet.vim
@@ -393,18 +421,29 @@ export PATH=/usr/bin:/usr/sbin:$PATH
 # Add pe-puppet as a subsystem in AIX
 mkssys -p /opt/puppet/bin/ruby -s pe-puppet -u root -a '/opt/puppet/bin/puppet agent --no-daemonize' -w 7 -S -n 15 -f 9 > /dev/null  2>&1 || :
 mkitab pe-puppet:2:once:startsrc -s pe-puppet > /dev/null 2>&1 || :
-%else
+%endif
+%if 0%{?_with_sysvinit}
 /sbin/chkconfig --add %{name} || :
+%endif
+%if 0%{?_with_systemd}
+/bin/systemctl daemon-reload >/dev/null 2>&1 || :
 %endif
 
 %preun
 %if 0%{?_aix}
 export PATH=/usr/bin:$PATH
 stopsrc -s pe-puppet > /dev/null 2>&1 || :
-%else
+%endif
+%if 0%{?_with_sysvinit}
 if [ "$1" = 0 ] ; then
-  /sbin/service %{name} stop > /dev/null 2>&1
+  /sbin/service %{name} stop > /dev/null 2>&1 || :
   /sbin/chkconfig --del %{name} || :
+fi
+%endif
+%if 0%{?_with_systemd}
+if [ "$1" = 0 ] ; then
+  /bin/systemctl stop %{name}.service /dev/null 2>&1 || :
+  /bin/systemctl disable %{name}.service /dev/null 2>&1 || :
 fi
 %endif
 
@@ -418,7 +457,14 @@ if [ "$1" -eq 0 ]; then
   rmssys -s pe-puppet > /dev/null 2>&1 || :
   rmitab pe-puppet  > /dev/null 2>&1 || :
 fi
-%else
+%endif
+%if 0%{?_with_systemd}
+if [ "$1" -ge 1 ] ; then
+  # Package upgrade, not uninstall
+  /bin/systemctl try-restart %{name}.service >/dev/null 2>&1 || :
+fi
+%endif
+%if 0%{?_with_sysvinit}
 if [ "$1" -ge 1 ]; then
   /sbin/service %{name} reload >/dev/null 2>&1 || :
 fi
