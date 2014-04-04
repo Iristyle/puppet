@@ -14,7 +14,7 @@
 %endif
 
 %if "%{dist}" == ".eos4"
-  %{!?eos: %global eos 1}
+  %{!?_eos: %global _eos 1}
 %endif
 
 # EL > 7 and SLES >= 12 use systemd
@@ -87,8 +87,20 @@
 # On AIX, the puppet user is just "puppet" not "pe-puppet"
 %if 0%{?_aix}
   %global puppetuser puppet
-%else
+%endif
+
+%if 0%{?_eos}
+  %global puppetuser root
+%endif
+
+%if ! 0%{?_aix} and ! 0%{?_eos}
   %global puppetuser %{name_prefix}puppet
+%endif
+
+# /persist/local is used for persistent storage on EOS
+%if 0%{?_eos}
+  %global _sysconfdir    /persist/local/etc/puppetlabs
+  %global _initrddir     /etc/ProcMgr.d/inst
 %endif
 
 Name:           %{?name_prefix}%{_name}
@@ -120,13 +132,17 @@ Requires:       shadow-utils
 Requires:       logrotate
 %endif
 
+%if 0%{?_eos}
+Requires:       ProcMgr
+%endif
+
 Requires:       %{?name_prefix}facter >= %{facter_version}
 Requires:       %{?name_prefix}hiera
 Requires:       %{?name_prefix}ruby
 Requires:       %{?name_prefix}ruby-augeas
 Requires:       %{?name_prefix}ruby-rgen
 # No SELinux in SUSE or RHEL4
-%if 0%{?rhel} >= 5 || 0%{?eos}
+%if 0%{?rhel} >= 5 || 0%{?_eos}
 Requires:       %{?name_prefix}ruby-selinux
 %endif
 # No rubygem-net-ssh in RHEL4 or EOS
@@ -166,7 +182,7 @@ along with obviously discrete elements like packages, services, and files.
 
 # The filter_provides_in macro doesn't exist on AIX or EL4 RPM (AIX is neither
 # sles nor rhel >= 5)
-%if 0%{?suse_version} || 0%{?rhel} >= 5 || 0%{?eos}
+%if 0%{?suse_version} || 0%{?rhel} >= 5 || 0%{?_eos}
 # we don't want to either provide or require anything from _docdir, per policy
 %{?filter_setup:
 %filter_provides_in %{_docdir}
@@ -249,6 +265,9 @@ install -Dp -m0755 %{confdir}/%{name}-client.init %{buildroot}%{_initrddir}/%{na
 install -d -m0755  %{buildroot}%{_unitdir}
 install -m0644 ext/systemd/%{name}.service %{buildroot}%{_unitdir}/
 %endif
+%if 0%{?_eos}
+install -Dp -m0644 ext/eos/%{name} %{buildroot}%{_initrddir}/%{name}
+%endif
 %if 0%{!?_aix:1}
 install -Dp -m0644 %{confdir}/%{name}-logrotate %{buildroot}%{_real_sysconfdir}/logrotate.d/%{name}
 %endif
@@ -284,6 +303,7 @@ for file in aix \
             gentoo \
             freebsd \
             emacs \
+            eos \
             vim \
             debian \
             osx \
@@ -326,7 +346,7 @@ ln -sf %{_prefix}/bin/puppet %{buildroot}%{_symlinkdir}/puppet
 %if 0%{?_with_systemd}
 %{_unitdir}/%{name}.service
 %endif
-%if 0%{?_with_sysvinit}
+%if 0%{?_with_sysvinit} || 0%{?_eos}
 %{_initrddir}/%{name}
 %endif
 %if 0%{!?_aix:1}
@@ -404,7 +424,8 @@ export PATH=/usr/bin:/usr/sbin:$PATH
 lsgroup %{puppetuser} >/dev/null 2>&1 ||  mkgroup %{puppetuser} >/dev/null 2>&1
 [ -d %{_localstatedir}/lib/%{name} ] || mkdir -p %{_localstatedir}/lib/%{name}
 lsuser %{puppetuser} >/dev/null 2>&1 || useradd -g %{puppetuser} -d %{_localstatedir}/lib/%{name} -c "Enterprise Distribution Puppet" %{puppetuser}  > /dev/null 2>&1 || :
-%else
+%endif
+%if ! 0%{?_aix} and ! 0%{?_eos}
 getent group %{puppetuser} &>/dev/null || groupadd -r %{puppetuser} &>/dev/null
 getent passwd %{puppetuser} &>/dev/null || \
 useradd -r -g %{puppetuser} -d %{_localstatedir}/opt/lib/%{name} -s /sbin/nologin \
@@ -429,6 +450,15 @@ mkitab %{name}:2:once:startsrc -s %{name} > /dev/null 2>&1 || :
 %if 0%{?_with_systemd}
 /bin/systemctl daemon-reload >/dev/null 2>&1 || :
 %endif
+%if 0%{?_eos}
+if [ "${1}" = 1 ]; then
+  /opt/puppet/bin/puppet config --confdir %{_sysconfdir}/puppet set user %{puppetuser}
+  /opt/puppet/bin/puppet config --confdir %{_sysconfdir}/puppet set group %{puppetuser}
+  /opt/puppet/bin/puppet config --confdir %{_sysconfdir}/puppet set modulepath '%{_sysconfdir}/puppet/modules:/opt/puppet/share/puppet/modules'
+fi
+/usr/bin/chkagent --add %{name} || :
+/sbin/service ProcMgr reload || :
+%endif
 
 %preun
 %if 0%{?_aix}
@@ -445,6 +475,12 @@ fi
 if [ "${1}" = 0 ] ; then
   /bin/systemctl stop %{name}.service /dev/null 2>&1 || :
   /bin/systemctl disable %{name}.service /dev/null 2>&1 || :
+fi
+%endif
+%if 0%{?_eos}
+if [ "${1}" = 0 ]; then
+  /usr/bin/chkagent --del %{name} || :
+  /sbin/service ProcMgr reload || :
 fi
 %endif
 
@@ -468,6 +504,11 @@ fi
 %if 0%{?_with_sysvinit}
 if [ "${1}" -ge 1 ]; then
   /sbin/service %{name} reload >/dev/null 2>&1 || :
+fi
+%endif
+%if 0%{?_eos}
+if [ "${1}" -ge 1 ]; then
+  /sbin/service ProcMgr reload || :
 fi
 %endif
 
