@@ -419,8 +419,8 @@ exit 0
 %if 0%{?_aix}
 export PATH=/usr/bin:/usr/sbin:$PATH
 # Add pe-puppet as a subsystem in AIX
-mkssys -p /opt/puppet/bin/ruby -s pe-puppet -u root -a '/opt/puppet/bin/puppet agent --no-daemonize' -w 7 -S -n 15 -f 9 > /dev/null  2>&1 || :
-mkitab pe-puppet:2:once:startsrc -s pe-puppet > /dev/null 2>&1 || :
+mkssys -p /opt/puppet/bin/ruby -s %{name} -u root -a '/opt/puppet/bin/puppet agent --no-daemonize' -w 7 -S -n 15 -f 9 > /dev/null  2>&1 || :
+mkitab %{name}:2:once:startsrc -s %{name} > /dev/null 2>&1 || :
 %endif
 %if 0%{?_with_sysvinit}
 /sbin/chkconfig --add %{name} || :
@@ -432,7 +432,7 @@ mkitab pe-puppet:2:once:startsrc -s pe-puppet > /dev/null 2>&1 || :
 %preun
 %if 0%{?_aix}
 export PATH=/usr/bin:$PATH
-stopsrc -s pe-puppet > /dev/null 2>&1 || :
+stopsrc -s %{name} > /dev/null 2>&1 || :
 %endif
 %if 0%{?_with_sysvinit}
 if [ "$1" = 0 ] ; then
@@ -451,11 +451,11 @@ fi
 %if 0%{?_aix}
 export PATH=/usr/bin:/usr/sbin:$PATH
 if [ "$1" -eq 0 ]; then
-  userdel puppet || :
-  rmgroup puppet || :
+  userdel %{puppetuser} || :
+  rmgroup %{puppetuser} || :
   # Remove pe-puppet subsystem from AIX
-  rmssys -s pe-puppet > /dev/null 2>&1 || :
-  rmitab pe-puppet  > /dev/null 2>&1 || :
+  rmssys -s %{name} > /dev/null 2>&1 || :
+  rmitab %{name} > /dev/null 2>&1 || :
 fi
 %endif
 %if 0%{?_with_systemd}
