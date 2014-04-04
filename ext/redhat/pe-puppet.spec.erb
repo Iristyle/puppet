@@ -435,13 +435,13 @@ export PATH=/usr/bin:$PATH
 stopsrc -s %{name} > /dev/null 2>&1 || :
 %endif
 %if 0%{?_with_sysvinit}
-if [ "$1" = 0 ] ; then
+if [ "${1}" = 0 ] ; then
   /sbin/service %{name} stop > /dev/null 2>&1 || :
   /sbin/chkconfig --del %{name} || :
 fi
 %endif
 %if 0%{?_with_systemd}
-if [ "$1" = 0 ] ; then
+if [ "${1}" = 0 ] ; then
   /bin/systemctl stop %{name}.service /dev/null 2>&1 || :
   /bin/systemctl disable %{name}.service /dev/null 2>&1 || :
 fi
@@ -450,7 +450,7 @@ fi
 %postun
 %if 0%{?_aix}
 export PATH=/usr/bin:/usr/sbin:$PATH
-if [ "$1" -eq 0 ]; then
+if [ "${1}" -eq 0 ]; then
   userdel %{puppetuser} || :
   rmgroup %{puppetuser} || :
   # Remove pe-puppet subsystem from AIX
@@ -459,13 +459,13 @@ if [ "$1" -eq 0 ]; then
 fi
 %endif
 %if 0%{?_with_systemd}
-if [ "$1" -ge 1 ] ; then
+if [ "${1}" -ge 1 ] ; then
   # Package upgrade, not uninstall
   /bin/systemctl try-restart %{name}.service >/dev/null 2>&1 || :
 fi
 %endif
 %if 0%{?_with_sysvinit}
-if [ "$1" -ge 1 ]; then
+if [ "${1}" -ge 1 ]; then
   /sbin/service %{name} reload >/dev/null 2>&1 || :
 fi
 %endif
