@@ -93,7 +93,7 @@
   %global puppetuser root
 %endif
 
-%if ! 0%{?_aix} and ! 0%{?_eos}
+%if ! 0%{?_aix} && ! 0%{?_eos}
   %global puppetuser %{name_prefix}puppet
 %endif
 
@@ -425,7 +425,7 @@ lsgroup %{puppetuser} >/dev/null 2>&1 ||  mkgroup %{puppetuser} >/dev/null 2>&1
 [ -d %{_localstatedir}/lib/%{name} ] || mkdir -p %{_localstatedir}/lib/%{name}
 lsuser %{puppetuser} >/dev/null 2>&1 || useradd -g %{puppetuser} -d %{_localstatedir}/lib/%{name} -c "Enterprise Distribution Puppet" %{puppetuser}  > /dev/null 2>&1 || :
 %endif
-%if ! 0%{?_aix} and ! 0%{?_eos}
+%if ! 0%{?_aix} && ! 0%{?_eos}
 getent group %{puppetuser} &>/dev/null || groupadd -r %{puppetuser} &>/dev/null
 getent passwd %{puppetuser} &>/dev/null || \
 useradd -r -g %{puppetuser} -d %{_localstatedir}/opt/lib/%{name} -s /sbin/nologin \
