@@ -117,6 +117,7 @@ BuildRequires:  coreutils sed
 %if 0%{!?_aix:1}
 Requires:       %{?name_prefix}ruby-shadow
 Requires:       shadow-utils
+Requires:       logrotate
 %endif
 
 Requires:       %{?name_prefix}facter >= %{facter_version}
