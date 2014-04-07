@@ -97,9 +97,9 @@
   %global puppetuser %{name_prefix}puppet
 %endif
 
-# /persist/local is used for persistent storage on EOS
+# /persist/sys is used for persistent storage on EOS
 %if 0%{?_eos}
-  %global _sysconfdir    /persist/local/etc/puppetlabs
+  %global _sysconfdir    /persist/sys/etc/puppetlabs
   %global _initrddir     /etc/ProcMgr.d/inst
 %endif
 
