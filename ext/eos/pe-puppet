@@ -1,4 +1,4 @@
 [pe-puppet]
 exe = /opt/puppet/bin/puppet
-argv = agent --daemonize --confdir /persist/local/etc/puppetlabs/puppet
+argv = agent --daemonize
 heartbeatPeriod = 0
