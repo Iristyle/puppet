@@ -262,6 +262,8 @@ install -Dp -m0755 %{confdir}/%{name}-client.init.suse %{buildroot}%{_initrddir}
 install -Dp -m0755 %{confdir}/%{name}-client.init %{buildroot}%{_initrddir}/%{name}
 %endif
 %if 0%{?_with_systemd}
+mkdir -p %{buildroot}%{_tmpfilesdir}
+install -m0644 ext/systemd/%{name}-tmpfiles.config %{buildroot}%{_tmpfilesdir}/%{name}.conf
 install -d -m0755  %{buildroot}%{_unitdir}
 install -m0644 ext/systemd/%{name}.service %{buildroot}%{_unitdir}/
 %endif
@@ -344,6 +346,7 @@ ln -sf %{_prefix}/bin/puppet %{buildroot}%{_symlinkdir}/puppet
 %config(noreplace) %{_sysconfdir}/%{_name}/puppet.conf
 %config(noreplace) %{_sysconfdir}/%{_name}/auth.conf
 %if 0%{?_with_systemd}
+%{_tmpfilesdir}/%{name}.conf
 %{_unitdir}/%{name}.service
 %endif
 %if 0%{?_with_sysvinit} || 0%{?_eos}
