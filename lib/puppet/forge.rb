@@ -1,25 +1,21 @@
+require 'puppet/vendor'
+Puppet::Vendor.load_vendored
+
 require 'net/http'
 require 'tempfile'
 require 'uri'
 require 'pathname'
-
-$LOAD_PATH.push File.join(File.dirname(__FILE__), 'external/semantic')
-require 'semantic/version'
-require 'semantic/version_range'
-require 'semantic/dependency'
-require 'semantic/dependency/module_release'
-require 'semantic/dependency/source'
-require 'semantic/dependency/graph'
-require 'semantic/dependency/unsatisfiable_graph'
-$LOAD_PATH.pop
+require 'json'
+require 'semantic'
 
 class Puppet::Forge < Semantic::Dependency::Source
+  require 'puppet/forge/cache'
   require 'puppet/forge/repository'
   require 'puppet/forge/errors'
 
   include Puppet::Forge::Errors
 
-  USER_AGENT = "PMT/1.1.0 (v3; Net::HTTP)".freeze
+  USER_AGENT = "PMT/1.1.1 (v3; Net::HTTP)".freeze
 
   attr_reader :host, :repository
   attr_accessor :filter_pe_versions
@@ -65,11 +61,11 @@ class Puppet::Forge < Semantic::Dependency::Source
       response = make_http_request(uri)
 
       if response.code == '200'
-        result = PSON.parse(response.body)
+        result = JSON.parse(response.body)
         uri = result['pagination']['next']
         matches.concat result['results']
       else
-        raise ResponseError.new(:uri => uri , :input => term, :response => response)
+        raise ResponseError.new(:uri => URI.parse(@host).merge(uri) , :input => term, :response => response)
       end
     end
 
@@ -83,6 +79,12 @@ class Puppet::Forge < Semantic::Dependency::Source
     end
   end
 
+  # Fetches {ModuleRelease} entries for each release of the named module.
+  #
+  # @param input [String] the module name to look up
+  # @return [Array<Semantic::Dependency::ModuleRelease>] a list of releases for
+  #         the given name
+  # @see Semantic::Dependency::Source#fetch
   def fetch(input)
     name = input.tr('/', '-')
     uri = "/v3/releases?module=#{name}"
@@ -92,9 +94,9 @@ class Puppet::Forge < Semantic::Dependency::Source
       response = make_http_request(uri)
 
       if response.code == '200'
-        response = PSON.parse(response.body)
+        response = JSON.parse(response.body)
       else
-        raise ResponseError.new(:uri => uri, :input => input, :response => response)
+        raise ResponseError.new(:uri => URI.parse(@host).merge(uri), :input => input, :response => response)
       end
 
       releases.concat(process(response['results']))
@@ -182,7 +184,9 @@ class Puppet::Forge < Semantic::Dependency::Source
     end
 
     def tmpfile
-      @file ||= Tempfile.new(name, Puppet::Forge::Cache.base_path).binmode
+      @file ||= Tempfile.new(name, Puppet::Forge::Cache.base_path).tap do |f|
+        f.binmode
+      end
     end
 
     def download(uri, destination)

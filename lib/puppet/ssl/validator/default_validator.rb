@@ -12,8 +12,8 @@ class Puppet::SSL::Validator::DefaultValidator #< class Puppet::SSL::Validator
 
   # Creates a new DefaultValidator, optionally with an SSL Configuration and SSL Host.
   #
-  # @param [Puppet::SSL::Configuration] (a default configuration) ssl_configuration the SSL configuration to use
-  # @param [Puppet::SSL::Host] (Puppet::SSL::Host.localhost) the SSL host to use
+  # @param ssl_configuration [Puppet::SSL::Configuration] (a default configuration) ssl_configuration the SSL configuration to use
+  # @param ssl_host [Puppet::SSL::Host] (Puppet::SSL::Host.localhost) the SSL host to use
   #
   # @api private
   #
@@ -148,6 +148,6 @@ class Puppet::SSL::Validator::DefaultValidator #< class Puppet::SSL::Validator
   # @api private
   #
   def ssl_certificates_are_present?
-    Puppet::FileSystem::File.exist?(Puppet[:hostcert]) && Puppet::FileSystem::File.exist?(@ssl_configuration.ca_auth_file)
+    Puppet::FileSystem.exist?(Puppet[:hostcert]) && Puppet::FileSystem.exist?(@ssl_configuration.ca_auth_file)
   end
 end

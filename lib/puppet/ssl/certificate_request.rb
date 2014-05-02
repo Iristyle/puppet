@@ -61,12 +61,12 @@ DOC
   #
   # @param key [OpenSSL::X509::Key, Puppet::SSL::Key] The key pair associated
   #   with this CSR.
-  # @param opts [Hash]
-  # @options opts [String] :dns_alt_names A comma separated list of
+  # @param options [Hash]
+  # @option options [String] :dns_alt_names A comma separated list of
   #   Subject Alternative Names to include in the CSR extension request.
-  # @options opts [Hash<String, String, Array<String>>] :csr_attributes A hash
+  # @option options [Hash<String, String, Array<String>>] :csr_attributes A hash
   #   of OIDs and values that are either a string or array of strings.
-  # @options opts [Array<String, String>] :extension_requests A hash of
+  # @option options [Array<String, String>] :extension_requests A hash of
   #   certificate extensions to add to the CSR extReq attribute, excluding
   #   the Subject Alternative Names extension.
   #
@@ -205,7 +205,7 @@ DOC
         csr.add_attribute(OpenSSL::X509::Attribute.new(oid, attr_set))
         Puppet.debug("Added csr attribute: #{oid} => #{attr_set.inspect}")
       rescue OpenSSL::X509::AttributeError => e
-        raise Puppet::Error, "Cannot create CSR with attribute #{oid}: #{e.message}"
+        raise Puppet::Error, "Cannot create CSR with attribute #{oid}: #{e.message}", e.backtrace
       end
     end
   end
@@ -230,7 +230,7 @@ DOC
           ext = OpenSSL::X509::Extension.new(oid, value.to_s, false)
           extensions << ext
         rescue OpenSSL::X509::ExtensionError => e
-          raise Puppet::Error, "Cannot create CSR with extension request #{oid}: #{e.message}"
+          raise Puppet::Error, "Cannot create CSR with extension request #{oid}: #{e.message}", e.backtrace
         end
       end
     end

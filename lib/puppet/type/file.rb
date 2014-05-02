@@ -135,7 +135,7 @@ Puppet::Type.newtype(:file) do
         but not the local (destination) directory. Allows copying of
         a few files into a directory containing many
         unmanaged files without scanning all the local files.
-        This can only be used when a source parameter is specified. 
+        This can only be used when a source parameter is specified.
       * `false` --- Default of no recursion.
     "
 
@@ -250,10 +250,42 @@ Puppet::Type.newtype(:file) do
     desc "Whether to display differences when the file changes, defaulting to
         true.  This parameter is useful for files that may contain passwords or
         other secret data, which might otherwise be included in Puppet reports or
-        other insecure outputs.  If the global ``show_diff` configuration parameter
+        other insecure outputs.  If the global `show_diff` setting
         is false, then no diffs will be shown even if this parameter is true."
 
     defaultto :true
+  end
+
+  newparam(:validate_cmd) do
+    desc "A command for validating the file's syntax before replacing it. If
+      Puppet would need to rewrite a file due to new `source` or `content`, it
+      will check the new content's validity first. If validation fails, the file
+      resource will fail.
+
+      This command must have a fully qualified path, and should contain a
+      percent (`%`) token where it would expect an input file. It must exit `0`
+      if the syntax is correct, and non-zero otherwise. The command will be
+      run on the target system while applying the catalog, not on the puppet master.
+
+      Example:
+
+          file { '/etc/apache2/apache2.conf':
+            content      => 'example',
+            validate_cmd => '/usr/sbin/apache2 -t -f %',
+          }
+
+      This would replace apache2.conf only if the test returned true.
+
+      Note that if a validation command requires a `%` as part of its text,
+      you can specify a different placeholder token with the
+      `validate_replacement` attribute."
+  end
+
+  newparam(:validate_replacement) do
+    desc "The replacement string in a `validate_cmd` that will be replaced
+      with an input file name. Defaults to: `%`"
+
+    defaultto '%'
   end
 
   # Autorequire the nearest ancestor directory found in the catalog.
@@ -581,7 +613,9 @@ Puppet::Type.newtype(:file) do
       end
       children[meta.relative_path] ||= newchild(meta.relative_path)
       children[meta.relative_path][:source] = meta.source
-      children[meta.relative_path][:checksum] = :md5 if meta.ftype == "file"
+      if meta.ftype == "file"
+        children[meta.relative_path][:checksum] = Puppet[:digest_algorithm].to_sym
+      end
 
       children[meta.relative_path].parameter(:source).metadata = meta
     end
@@ -695,7 +729,7 @@ Puppet::Type.newtype(:file) do
     end
 
     @stat = begin
-      Puppet::FileSystem::File.new(self[:path]).send(method)
+      Puppet::FileSystem.send(method, self[:path])
     rescue Errno::ENOENT => error
       nil
     rescue Errno::ENOTDIR => error
@@ -726,6 +760,12 @@ Puppet::Type.newtype(:file) do
         content_checksum = write_content(file)
         file.flush
         fail_if_checksum_is_wrong(file.path, content_checksum) if validate_checksum?
+        if self[:validate_cmd]
+          output = Puppet::Util::Execution.execute(self[:validate_cmd].gsub(self[:validate_replacement], file.path), :failonfail => true, :combine => true)
+          output.split(/\n/).each { |line|
+            self.debug(line)
+          }
+        end
       end
     else
       umask = mode ? 000 : 022
@@ -777,7 +817,7 @@ Puppet::Type.newtype(:file) do
   # @api private
   def remove_file(current_type, wanted_type)
     debug "Removing existing #{current_type} for replacement with #{wanted_type}"
-    Puppet::FileSystem::File.unlink(self[:path])
+    Puppet::FileSystem.unlink(self[:path])
     stat_needed
     true
   end

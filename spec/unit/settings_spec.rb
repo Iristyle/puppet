@@ -103,8 +103,8 @@ describe Puppet::Settings do
   end
 
   describe "#call_hooks_deferred_to_application_initialization" do
-    let (:good_default) { "yay" }
-    let (:bad_default) { "$doesntexist" }
+    let(:good_default) { "yay" }
+    let(:bad_default) { "$doesntexist" }
     before(:each) do
       @settings = Puppet::Settings.new
     end
@@ -148,7 +148,7 @@ describe Puppet::Settings do
             )
             expect do
               @settings.send(:call_hooks_deferred_to_application_initialization, options)
-            end.to raise_error Puppet::Settings::InterpolationError
+            end.to raise_error(Puppet::Settings::InterpolationError)
           end
           it "should contain the setting name in error message" do
             hook_values = []
@@ -163,7 +163,7 @@ describe Puppet::Settings do
             )
             expect do
               @settings.send(:call_hooks_deferred_to_application_initialization, options)
-            end.to raise_error Puppet::Settings::InterpolationError, /badhook/
+            end.to raise_error(Puppet::Settings::InterpolationError, /badhook/)
           end
         end
         describe "if no interpolation error" do
@@ -205,48 +205,40 @@ describe Puppet::Settings do
     end
 
     it "should support a getopt-specific mechanism for turning booleans off" do
-      @settings[:bool] = true
+      @settings.override_default(:bool, true)
       @settings.handlearg("--no-bool", "")
       @settings[:bool].should == false
     end
 
     it "should support a getopt-specific mechanism for turning booleans on" do
       # Turn it off first
-      @settings[:bool] = false
+      @settings.override_default(:bool, false)
       @settings.handlearg("--bool", "")
       @settings[:bool].should == true
     end
 
     it "should consider a cli setting with no argument to be a boolean" do
       # Turn it off first
-      @settings[:bool] = false
+      @settings.override_default(:bool, false)
       @settings.handlearg("--bool")
       @settings[:bool].should == true
     end
 
-    it "should consider a cli setting with an empty string as an argument to be a boolean, if the setting itself is a boolean" do
-      # Turn it off first
-      @settings[:bool] = false
-      @settings.handlearg("--bool", "")
-      @settings[:bool].should == true
-    end
-
     it "should consider a cli setting with an empty string as an argument to be an empty argument, if the setting itself is not a boolean" do
-      @settings[:myval] = "bob"
+      @settings.override_default(:myval, "bob")
       @settings.handlearg("--myval", "")
       @settings[:myval].should == ""
     end
 
     it "should consider a cli setting with a boolean as an argument to be a boolean" do
       # Turn it off first
-      @settings[:bool] = false
+      @settings.override_default(:bool, false)
       @settings.handlearg("--bool", "true")
       @settings[:bool].should == true
     end
 
     it "should not consider a cli setting of a non boolean with a boolean as an argument to be a boolean" do
-      # Turn it off first
-      @settings[:myval] = "bob"
+      @settings.override_default(:myval, "bob")
       @settings.handlearg("--no-myval", "")
       @settings[:myval].should == ""
     end
@@ -257,7 +249,6 @@ describe Puppet::Settings do
     end
 
     it "should flag bool settings from the CLI" do
-      @settings[:bool] = false
       @settings.handlearg("--bool")
       @settings.set_by_cli?(:bool).should be_true
     end
@@ -281,7 +272,7 @@ describe Puppet::Settings do
         @settings.handlearg("--myval", "blah")
         expect do
           @settings.setting(:myval).setbycli = nil
-        end.to raise_error ArgumentError, /unset/
+        end.to raise_error(ArgumentError, /unset/)
       end
     end
 
@@ -318,12 +309,12 @@ describe Puppet::Settings do
             it "should raise error if no hook defined" do
               expect do
                 @settings.define_settings(:section, :hooker => {:default => "yay", :desc => "boo", :call_hook => val})
-              end.to raise_error ArgumentError, /no :hook/
+              end.to raise_error(ArgumentError, /no :hook/)
             end
             it "should include the setting name in the error message" do
               expect do
                 @settings.define_settings(:section, :hooker => {:default => "yay", :desc => "boo", :call_hook => val})
-              end.to raise_error ArgumentError, /for :hooker/
+              end.to raise_error(ArgumentError, /for :hooker/)
             end
           end
           describe "and definition valid" do
@@ -360,7 +351,7 @@ describe Puppet::Settings do
         it "should raise an error" do
           expect do
             @settings.define_settings(:section, :hooker => {:default => "yay", :desc => "boo", :call_hook => :foo, :hook => lambda { |v| hook_values << v  }})
-          end.to raise_error ArgumentError, /invalid.*call_hook/i
+          end.to raise_error(ArgumentError, /invalid.*call_hook/i)
         end
       end
 
@@ -457,10 +448,11 @@ describe Puppet::Settings do
       @settings[:bool].should == false
     end
 
-    it "should prefer cli values to values set in Ruby code" do
-      @settings.handlearg("--myval", "cliarg")
+    it "should prefer values set in ruby to values set on the cli" do
       @settings[:myval] = "memarg"
-      @settings[:myval].should == "cliarg"
+      @settings.handlearg("--myval", "cliarg")
+
+      @settings[:myval].should == "memarg"
     end
 
     it "should clear the list of environments" do
@@ -471,7 +463,13 @@ describe Puppet::Settings do
     it "should raise an error if we try to set a setting that hasn't been defined'" do
       lambda{
         @settings[:why_so_serious] = "foo"
-      }.should raise_error(ArgumentError, /unknown configuration parameter/)
+      }.should raise_error(ArgumentError, /unknown setting/)
+    end
+
+    it "allows overriding cli args based on the cli-set value" do
+      @settings.handlearg("--myval", "cliarg")
+      @settings.set_value(:myval, "modified #{@settings[:myval]}", :cli)
+      expect(@settings[:myval]).to eq("modified cliarg")
     end
 
     it "allows overriding cli args based on the cli-set value" do
@@ -491,7 +489,7 @@ describe Puppet::Settings do
           :three  => { :default => "$one $two THREE", :desc => "c"},
           :four   => { :default => "$two $three FOUR", :desc => "d"},
           :five   => { :default => nil, :desc => "e" }
-      Puppet::FileSystem::File.stubs(:exist?).returns true
+      Puppet::FileSystem.stubs(:exist?).returns true
     end
 
     describe "call_on_define" do
@@ -575,6 +573,13 @@ describe Puppet::Settings do
       @settings.preferred_run_mode.should == :user
     end
 
+    it "interpolates a boolean false without raising an error" do
+      @settings.define_settings(:section,
+          :trip_wire => { :type => :boolean, :default => false, :desc => "a trip wire" },
+          :tripping => { :default => '$trip_wire', :desc => "once tripped if interpolated was false" })
+      @settings[:tripping].should == "false"
+    end
+
     describe "setbycli" do
       it "should generate a deprecation warning" do
         @settings.handlearg("--one", "blah")
@@ -595,7 +600,7 @@ describe Puppet::Settings do
         :config => { :type => :file, :default => "/my/file", :desc => "a" },
         :one => { :default => "ONE", :desc => "a" },
         :two => { :default => "TWO", :desc => "b" }
-      Puppet::FileSystem::File.stubs(:exist?).returns true
+      Puppet::FileSystem.stubs(:exist?).returns true
       @settings.preferred_run_mode = :agent
     end
 
@@ -609,12 +614,6 @@ describe Puppet::Settings do
       @settings.handlearg("--one", "clival")
       @settings.send(:parse_config_files)
 
-      @settings[:one].should == "clival"
-    end
-
-    it "should return values set on the cli before values set in Ruby" do
-      @settings[:one] = "rubyval"
-      @settings.handlearg("--one", "clival")
       @settings[:one].should == "clival"
     end
 
@@ -661,6 +660,38 @@ describe Puppet::Settings do
       @settings.send(:parse_config_files)
       @settings.value(:one, "env").should == "envval"
     end
+
+    context "when interpolating a dynamic environments setting" do
+      let(:dynamic_manifestdir) { "manifestdir=/somewhere/$environment/manifests" }
+      let(:environment) { "environment=anenv" }
+
+      before(:each) do
+        @settings.define_settings :main,
+          :manifestdir => { :default => "/manifests", :desc => "manifestdir setting" },
+          :environment => { :default => "production", :desc => "environment setting" }
+      end
+
+      it "interpolates default environment when no environment specified" do
+        text = <<-EOF
+[main]
+#{dynamic_manifestdir}
+        EOF
+        @settings.stubs(:read_file).returns(text)
+        @settings.send(:parse_config_files)
+        expect(@settings.value(:manifestdir)).to eq("/somewhere/production/manifests")
+      end
+ 
+      it "interpolates the set environment when no environment specified" do
+        text = <<-EOF
+[main]
+#{dynamic_manifestdir}
+#{environment}
+        EOF
+        @settings.stubs(:read_file).returns(text)
+        @settings.send(:parse_config_files)
+        expect(@settings.value(:manifestdir)).to eq("/somewhere/anenv/manifests")
+      end
+    end
   end
 
 
@@ -672,8 +703,8 @@ describe Puppet::Settings do
     describe "when root" do
       it "should look for the main config file default location config settings haven't been overridden'" do
         Puppet.features.stubs(:root?).returns(true)
-        Puppet::FileSystem::File.expects(:exist?).with(main_config_file_default_location).returns(false)
-        Puppet::FileSystem::File.expects(:exist?).with(user_config_file_default_location).never
+        Puppet::FileSystem.expects(:exist?).with(main_config_file_default_location).returns(false)
+        Puppet::FileSystem.expects(:exist?).with(user_config_file_default_location).never
 
         @settings.send(:parse_config_files)
       end
@@ -684,7 +715,7 @@ describe Puppet::Settings do
         Puppet.features.stubs(:root?).returns(false)
 
         seq = sequence "load config files"
-        Puppet::FileSystem::File.expects(:exist?).with(user_config_file_default_location).returns(false).in_sequence(seq)
+        Puppet::FileSystem.expects(:exist?).with(user_config_file_default_location).returns(false).in_sequence(seq)
 
         @settings.send(:parse_config_files)
       end
@@ -705,8 +736,8 @@ describe Puppet::Settings do
           :two => { :default => "$one TWO", :desc => "b" },
           :three => { :default => "$one $two THREE", :desc => "c" }
       @settings.stubs(:user_config_file).returns(@userconfig)
-      Puppet::FileSystem::File.stubs(:exist?).with(@file).returns true
-      Puppet::FileSystem::File.stubs(:exist?).with(@userconfig).returns false
+      Puppet::FileSystem.stubs(:exist?).with(@file).returns true
+      Puppet::FileSystem.stubs(:exist?).with(@userconfig).returns false
     end
 
     it "should not ignore the report setting" do
@@ -718,7 +749,7 @@ describe Puppet::Settings do
         [puppetd]
           report=true
       CONF
-      Puppet::FileSystem::File.expects(:exist?).with(myfile).returns(true)
+      Puppet::FileSystem.expects(:exist?).with(myfile).returns(true)
       @settings.expects(:read_file).returns(text)
       @settings.send(:parse_config_files)
       @settings[:report].should be_true
@@ -728,15 +759,15 @@ describe Puppet::Settings do
       myfile = make_absolute("/my/file") # do not stub expand_path here, as this leads to a stack overflow, when mocha tries to use it
       @settings[:config] = myfile
 
-      Puppet::FileSystem::File.expects(:exist?).with(myfile).returns(true)
+      Puppet::FileSystem.expects(:exist?).with(myfile).returns(true)
 
-      File.expects(:read).with(myfile).returns "[main]"
+      Puppet::FileSystem.expects(:read).with(myfile).returns "[main]"
 
       @settings.send(:parse_config_files)
     end
 
     it "should not try to parse non-existent files" do
-      Puppet::FileSystem::File.expects(:exist?).with(@file).returns false
+      Puppet::FileSystem.expects(:exist?).with(@file).returns false
 
       File.expects(:read).with(@file).never
 
@@ -942,7 +973,28 @@ describe Puppet::Settings do
       @settings.initialize_app_defaults(:logdir => '/path/to/logdir', :confdir => '/path/to/confdir', :vardir => '/path/to/vardir')
 
       hook_invoked.should be_true
-      @settings[:deferred].should eq File.expand_path('/path/to/confdir/goose')
+      @settings[:deferred].should eq(File.expand_path('/path/to/confdir/goose'))
+    end
+
+    it "does not require the value for a setting without a hook to resolve during global setup" do
+      hook_invoked = false
+      @settings.define_settings :section, :can_cause_problems  => {:desc => '' }
+
+      @settings.define_settings(:main,
+        :logdir       => { :type => :directory, :default => nil, :desc => "logdir" },
+        :confdir      => { :type => :directory, :default => nil, :desc => "confdir" },
+        :vardir       => { :type => :directory, :default => nil, :desc => "vardir" })
+
+      text = <<-EOD
+      [main]
+      can_cause_problems=$confdir/goose
+      EOD
+
+      @settings.stubs(:read_file).returns(text)
+      @settings.initialize_global_settings
+      @settings.initialize_app_defaults(:logdir => '/path/to/logdir', :confdir => '/path/to/confdir', :vardir => '/path/to/vardir')
+
+      @settings[:can_cause_problems].should eq(File.expand_path('/path/to/confdir/goose'))
     end
 
     it "does not require the value for a setting without a hook to resolve during global setup" do
@@ -977,21 +1029,106 @@ describe Puppet::Settings do
       @settings[:myarg].should == ""
     end
 
-    describe "and when reading a non-positive filetimeout value from the config file" do
-      before do
-        @settings.define_settings :foo, :filetimeout => { :default => 5, :desc => "eh" }
+    describe "deprecations" do
+      context "in puppet.conf" do
 
-        somefile = "/some/file"
-        text = "[main]
-        filetimeout = -1
-        "
-        File.expects(:read).with(somefile).returns(text)
-        File.expects(:expand_path).with(somefile).returns somefile
-        @settings[:config] = somefile
+        def assert_puppet_conf_deprecation(setting, matches)
+          Puppet.expects(:deprecation_warning).with(regexp_matches(matches), anything)
+
+          val = "/you/can/set/this/but/will/get/warning"
+          text = "[main]
+          #{setting}=#{val}
+          "
+          Puppet.settings.parse_config(text)
+        end
+
+        it "warns when manifest is set" do
+          assert_puppet_conf_deprecation('manifest', /manifest.*puppet.conf/)
+        end
+
+        it "warns when modulepath is set" do
+          assert_puppet_conf_deprecation('modulepath', /modulepath.*puppet.conf/)
+        end
+
+        it "warns when config_version is set" do
+          assert_puppet_conf_deprecation('config_version', /config_version.*puppet.conf/)
+        end
+
+        it "warns when manifestdir is set" do
+          assert_puppet_conf_deprecation('manifestdir', /Setting manifestdir.*is.*deprecated/)
+        end
+
+        it "warns when templatedir is set" do
+          assert_puppet_conf_deprecation('templatedir', /Setting templatedir.*is.*deprecated/)
+        end
+      end
+
+      context "on the command line" do
+        def assert_command_line_deprecation(setting, message)
+          Puppet.expects(:deprecation_warning).with(message, anything)
+
+          args = ["--#{setting}", "/some/value"]
+          Puppet.settings.send(:parse_global_options, args)
+        end
+
+        def assert_command_line_not_deprecated(setting)
+          Puppet.expects(:deprecation_warning).never
+
+          args = ["--#{setting}", "/some/value"]
+          Puppet.settings.send(:parse_global_options, args)
+        end
+
+        it "does not warn when manifest is set on command line" do
+          assert_command_line_not_deprecated('manifest')
+        end
+
+        it "does not warn when modulepath is set on command line" do
+          assert_command_line_not_deprecated('modulepath')
+        end
+
+        it "does not warn when config_version is set on command line" do
+          assert_command_line_not_deprecated('config_version')
+        end
+
+        it "warns when manifestdir is set on command line" do
+          assert_command_line_deprecation('manifestdir', "Setting manifestdir is deprecated. See http://links.puppetlabs.com/env-settings-deprecations")
+        end
+
+        it "warns when templatedir is set on command line" do
+          assert_command_line_deprecation('templatedir', "Setting templatedir is deprecated. See http://links.puppetlabs.com/env-settings-deprecations")
+        end
+      end
+
+      context "as settings in the code base" do
+        def assert_accessing_setting_is_deprecated(setting)
+          Puppet.expects(:deprecation_warning).with("Accessing '#{setting}' as a setting is deprecated. See http://links.puppetlabs.com/env-settings-deprecations")
+          Puppet.expects(:deprecation_warning).with("Modifying '#{setting}' as a setting is deprecated. See http://links.puppetlabs.com/env-settings-deprecations")
+          Puppet[setting.intern] = apath = File.expand_path('foo')
+          expect(Puppet[setting.intern]).to eq(apath)
+        end
+
+        it "warns when attempt to access a 'manifest' setting" do
+          assert_accessing_setting_is_deprecated('manifest')
+        end
+
+        it "warns when attempt to access a 'modulepath' setting" do
+          assert_accessing_setting_is_deprecated('modulepath')
+        end
+        it "warns when attempt to access a 'config_version' setting" do
+          assert_accessing_setting_is_deprecated('config_version')
+        end
+
+        it "warns when attempt to access a 'manifestdir' setting" do
+          assert_accessing_setting_is_deprecated('manifestdir')
+        end
+
+        it "warns when attempt to access a 'templatedir' setting" do
+          assert_accessing_setting_is_deprecated('templatedir')
+        end
+
       end
     end
   end
-
 
   describe "when there are multiple config files" do
     let(:main_config_text) { "[main]\none = main\ntwo = main2" }
@@ -1010,7 +1147,7 @@ describe Puppet::Settings do
     context "running non-root without explicit config file" do
       before :each do
         Puppet.features.stubs(:root?).returns(false)
-        Puppet::FileSystem::File.expects(:exist?).
+        Puppet::FileSystem.expects(:exist?).
           with(user_config_file_default_location).
           returns(true).in_sequence(seq)
         @settings.expects(:read_file).
@@ -1032,7 +1169,7 @@ describe Puppet::Settings do
     context "running as root without explicit config file" do
       before :each do
         Puppet.features.stubs(:root?).returns(true)
-        Puppet::FileSystem::File.expects(:exist?).
+        Puppet::FileSystem.expects(:exist?).
           with(main_config_file_default_location).
           returns(true).in_sequence(seq)
         @settings.expects(:read_file).
@@ -1055,7 +1192,7 @@ describe Puppet::Settings do
       before :each do
         Puppet.features.stubs(:root?).returns(false)
         @settings[:confdir] = File.dirname(main_config_file_default_location)
-        Puppet::FileSystem::File.expects(:exist?).
+        Puppet::FileSystem.expects(:exist?).
           with(main_config_file_default_location).
           returns(true).in_sequence(seq)
         @settings.expects(:read_file).
@@ -1085,13 +1222,13 @@ describe Puppet::Settings do
           :one => { :default => "ONE", :desc => "a" },
           :two => { :default => "$one TWO", :desc => "b" },
           :three => { :default => "$one $two THREE", :desc => "c" }
-      Puppet::FileSystem::File.stubs(:exist?).with(@file).returns true
-      Puppet::FileSystem::File.stubs(:exist?).with(@userconfig).returns false
+      Puppet::FileSystem.stubs(:exist?).with(@file).returns true
+      Puppet::FileSystem.stubs(:exist?).with(@userconfig).returns false
       @settings.stubs(:user_config_file).returns(@userconfig)
     end
 
     it "does not create the WatchedFile instance and should not parse if the file does not exist" do
-      Puppet::FileSystem::File.expects(:exist?).with(@file).returns false
+      Puppet::FileSystem.expects(:exist?).with(@file).returns false
       Puppet::Util::WatchedFile.expects(:new).never
 
       @settings.expects(:parse_config_files).never
@@ -1430,13 +1567,20 @@ describe Puppet::Settings do
 
       @trans.expects(:any_failed?).returns(true)
 
-      report = mock 'report'
+      resource = Puppet::Type.type(:notify).new(:title => 'failed')
+      status = Puppet::Resource::Status.new(resource)
+      event = Puppet::Transaction::Event.new(
+        :name => 'failure',
+        :status => 'failure',
+        :message => 'My failure')
+      status.add_event(event)
+
+      report = Puppet::Transaction::Report.new('apply')
+      report.add_resource_status(status)
+
       @trans.expects(:report).returns report
 
-      log = mock 'log', :to_s => "My failure", :level => :err
-      report.expects(:logs).returns [log]
-
-      @settings.expects(:raise).with { |msg| msg.include?("My failure") }
+      @settings.expects(:raise).with(includes("My failure"))
       @settings.use(:whatever)
     end
   end

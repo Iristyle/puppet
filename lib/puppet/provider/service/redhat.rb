@@ -17,18 +17,21 @@ Puppet::Type.type(:service).provide :redhat, :parent => :init, :source => :init 
     # service in run levels 0, 1 and/or 6
     output = chkconfig("--level", "0123456", @resource[:name], :off)
   rescue Puppet::ExecutionFailure
-    raise Puppet::Error, "Could not disable #{self.name}: #{output}"
+    raise Puppet::Error, "Could not disable #{self.name}: #{output}", $!.backtrace
   end
 
   def enabled?
-    # Checkconfig always returns 0 on SuSE unless the --check flag is used.
-    args = (Facter.value(:osfamily) == 'Suse' ? ['--check'] : [])
+    name = @resource[:name]
 
     begin
-      chkconfig(@resource[:name], *args)
+      output = chkconfig name
     rescue Puppet::ExecutionFailure
       return :false
     end
+
+    # For Suse OS family, chkconfig returns 0 even if the service is disabled or non-existent
+    # Therefore, check the output for '<name>  on' to see if it is enabled
+    return :false unless Facter.value(:osfamily) != 'Suse' || output =~ /^#{name}\s+on$/
 
     :true
   end
@@ -38,7 +41,7 @@ Puppet::Type.type(:service).provide :redhat, :parent => :init, :source => :init 
   def enable
       chkconfig(@resource[:name], :on)
   rescue Puppet::ExecutionFailure => detail
-    raise Puppet::Error, "Could not enable #{self.name}: #{detail}"
+    raise Puppet::Error, "Could not enable #{self.name}: #{detail}", detail.backtrace
   end
 
   def initscript

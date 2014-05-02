@@ -29,28 +29,32 @@ module Puppet::Util::Execution
     end
   end
 
-  # Executes the provided command with STDIN connected to a pipe, yielding the
-  # pipe object.
-  # This allows data to be fed to the subprocess.
-  #
   # The command can be a simple string, which is executed as-is, or an Array,
   # which is treated as a set of command arguments to pass through.
   #
-  # In all cases this is passed directly to the shell, and STDOUT and STDERR
-  # are connected together during execution.
-  # @param command [String, Array<String>] the command to execute as one string, or as parts in an array.
-  #   the parts of the array are joined with one separating space between each entry when converting to
-  #   the command line string to execute.
-  # @param failonfail [Boolean] (true) if the execution should fail with Exception on failure or not.
+  # In either case, the command is passed directly to the shell, STDOUT and
+  # STDERR are connected together, and STDOUT and STDIN are available via the
+  # yielded pipe. (Bear in mind that reading from or writing to a pipe that has
+  # not been opened in read or write mode respectively will block indefinitely.)
+  #
+  # @param command [String, Array<String>] the command to execute as one string,
+  #   or as parts in an array. The parts of the array are joined with one
+  #   separating space between each entry when converting to the command line
+  #   string to execute.
+  # @param failonfail [Boolean] (true) if the execution should fail with
+  #   Exception on failure or not.
+  # @param mode [String] ('r') the mode to open the pipe with
   # @yield [pipe] to a block executing a subprocess
   # @yieldparam pipe [IO] the opened pipe
   # @yieldreturn [String] the output to return
-  # @raise [Puppet::ExecutionFailure] if the executed chiled process did not exit with status == 0 and `failonfail` is
-  #   `true`.
-  # @return [String] a string with the output from the subprocess executed by the given block
-  # @api public
+  # @raise [Puppet::ExecutionFailure] if the executed chiled process did not
+  #   exit with status == 0 and `failonfail` is `true`.
+  # @return [String] a string with the output from the subprocess executed by
+  #   the given block
   #
-  def self.execpipe(command, failonfail = true)
+  # @see Kernel#open for `mode` values
+  # @api public
+  def self.execpipe(command, failonfail = true, mode = 'r')
     # Paste together an array with spaces.  We used to paste directly
     # together, no spaces, which made for odd invocations; the user had to
     # include whitespace between arguments.
@@ -66,8 +70,15 @@ module Puppet::Util::Execution
       Puppet.debug "Executing '#{command_str}'"
     end
 
-    output = open("| #{command_str} 2>&1") do |pipe|
-      yield pipe
+    # force the run of the command with
+    # the user/system locale to "C" (via environment variables LANG and LC_*)
+    # it enables to have non localized output for some commands and therefore
+    # a predictable output
+    english_env = ENV.to_hash.merge( {'LANG' => 'C', 'LC_ALL' => 'C'} )
+    output = Puppet::Util.withenv(english_env) do
+      open("| #{command_str} 2>&1", mode) do |pipe|
+        yield pipe
+      end
     end
 
     if failonfail
@@ -87,7 +98,7 @@ module Puppet::Util::Execution
     output = execute(command)
     return output
   rescue Puppet::ExecutionFailure
-    raise exception, output
+    raise exception, output, exception.backtrace
   end
 
   # Default empty options for {execute}
@@ -185,7 +196,7 @@ module Puppet::Util::Execution
     end
 
     if options[:failonfail] and exit_status != 0
-      raise Puppet::ExecutionFailure, "Execution of '#{str}' returned #{exit_status}: #{output}"
+      raise Puppet::ExecutionFailure, "Execution of '#{str}' returned #{exit_status}: #{output.strip}"
     end
 
     Puppet::Util::Execution::ProcessOutput.new(output || '', exit_status)
@@ -286,7 +297,7 @@ module Puppet::Util::Execution
     #  about a race condition because all of the places that we call this from are preceded by a call to "waitpid2",
     #  meaning that the processes responsible for writing the file have completed before we get here.)
     2.times do |try|
-      if Puppet::FileSystem::File.exist?(stdout.path)
+      if Puppet::FileSystem.exist?(stdout.path)
         stdout.open
         begin
           return stdout.read

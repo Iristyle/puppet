@@ -50,6 +50,11 @@ module Puppet
       passed to the installer command."
     feature :uninstall_options, "The provider accepts options to be
       passed to the uninstaller command."
+    feature :package_settings, "The provider accepts package_settings to be
+      ensured for the given package. The meaning and format of these settings is
+      provider-specific.",
+      :methods => [:package_settings_insync?, :package_settings, :package_settings=]
+
 
     ensurable do
       desc <<-EOT
@@ -90,7 +95,7 @@ module Puppet
         begin
           provider.update
         rescue => detail
-          self.fail "Could not update: #{detail}"
+          self.fail Puppet::Error, "Could not update: #{detail}", detail
         end
 
         if current == :absent
@@ -104,7 +109,7 @@ module Puppet
         begin
           provider.install
         rescue => detail
-          self.fail "Could not update: #{detail}"
+          self.fail Puppet::Error, "Could not update: #{detail}", detail
         end
 
         if self.retrieve == :absent
@@ -233,8 +238,74 @@ module Puppet
       end
     end
 
+    newproperty(:package_settings, :required_features=>:package_settings) do
+      desc "Settings that can change the contents or configuration of a package.
+
+        The formatting and effects of package_settings are provider-specific; any
+        provider that implements them must explain how to use them in its
+        documentation. (Our general expectation is that if a package is
+        installed but its settings are out of sync, the provider should
+        re-install that package with the desired settings.)
+
+        An example of how package_settings could be used is FreeBSD's port build
+        options --- a future version of the provider could accept a hash of options,
+        and would reinstall the port if the installed version lacked the correct
+        settings.
+
+            package { 'www/apache22':
+              package_settings => { 'SUEXEC' => false }
+            }
+
+        Again, check the documentation of your platform's package provider to see
+        the actual usage."
+
+      validate do |value|
+        if provider.respond_to?(:package_settings_validate)
+          provider.package_settings_validate(value)
+        else
+          super(value)
+        end
+      end
+
+      munge do |value|
+        if provider.respond_to?(:package_settings_munge)
+          provider.package_settings_munge(value)
+        else
+          super(value)
+        end
+      end
+
+      def insync?(is)
+        provider.package_settings_insync?(should, is)
+      end
+
+      def should_to_s(newvalue)
+        if provider.respond_to?(:package_settings_should_to_s)
+          provider.package_settings_should_to_s(should, newvalue)
+        else
+          super(newvalue)
+        end
+      end
+
+      def is_to_s(currentvalue)
+        if provider.respond_to?(:package_settings_is_to_s)
+          provider.package_settings_is_to_s(should, currentvalue)
+        else
+          super(currentvalue)
+        end
+      end
+
+      def change_to_s(currentvalue, newvalue)
+        if provider.respond_to?(:package_settings_change_to_s)
+          provider.package_settings_change_to_s(currentvalue, newvalue)
+        else
+          super(currentvalue,newvalue)
+        end
+      end
+    end
+
     newparam(:source) do
-      desc "Where to find the actual package.  This must be a local file
+      desc "Where to find the actual package. This must be a local file
         (or on a network file system) or a URL that your specific
         packaging type understands; Puppet will not retrieve files for you,
         although you can manage packages as `file` resources."

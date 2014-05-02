@@ -1,6 +1,8 @@
 module PuppetSpec
   module ModuleTool
     class StubSource < Semantic::Dependency::Source
+      def inspect; "Stub Source"; end
+
       def host
         "http://nowhe.re"
       end

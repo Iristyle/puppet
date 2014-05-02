@@ -14,14 +14,14 @@ module Puppet::FileBucketFile
       contents_file = path_for(request.options[:bucket_path], checksum, 'contents')
       paths_file = path_for(request.options[:bucket_path], checksum, 'paths')
 
-      if contents_file.exist? && matches(paths_file, files_original_path)
+      if Puppet::FileSystem.exist?(contents_file) && matches(paths_file, files_original_path)
         if request.options[:diff_with]
           other_contents_file = path_for(request.options[:bucket_path], request.options[:diff_with], 'contents')
-          raise "could not find diff_with #{request.options[:diff_with]}" unless other_contents_file.exist?
-          return `diff #{contents_file.path.to_s.inspect} #{other_contents_file.path.to_s.inspect}`
+          raise "could not find diff_with #{request.options[:diff_with]}" unless Puppet::FileSystem.exist?(other_contents_file)
+          return `diff #{Puppet::FileSystem.path_string(contents_file).inspect} #{Puppet::FileSystem.path_string(other_contents_file).inspect}`
         else
           Puppet.info "FileBucket read #{checksum}"
-          model.new(contents_file.binread)
+          model.new(Puppet::FileSystem.binread(contents_file))
         end
       else
         nil
@@ -33,7 +33,7 @@ module Puppet::FileBucketFile
       contents_file = path_for(request.options[:bucket_path], checksum, 'contents')
       paths_file = path_for(request.options[:bucket_path], checksum, 'paths')
 
-      contents_file.exist? && matches(paths_file, files_original_path)
+      Puppet::FileSystem.exist?(contents_file) && matches(paths_file, files_original_path)
     end
 
     def save(request)
@@ -54,8 +54,11 @@ module Puppet::FileBucketFile
 
     private
 
+    # @param paths_file [Object] Opaque file path
+    # @param files_original_path [String]
+    #
     def matches(paths_file, files_original_path)
-      paths_file.open(0640, 'a+') do |f|
+      Puppet::FileSystem.open(paths_file, 0640, 'a+') do |f|
         path_match(f, files_original_path)
       end
     end
@@ -69,18 +72,21 @@ module Puppet::FileBucketFile
       return false
     end
 
+    # @param contents_file [Object] Opaque file path
+    # @param paths_file [Object] Opaque file path
+    #
     def save_to_disk(bucket_file, files_original_path, contents_file, paths_file)
       Puppet::Util.withumask(0007) do
-        unless paths_file.dir.exist?
-          paths_file.dir.mkpath
+        unless Puppet::FileSystem.dir_exist?(paths_file)
+          Puppet::FileSystem.dir_mkpath(paths_file)
         end
 
-        paths_file.exclusive_open(0640, 'a+') do |f|
-          if contents_file.exist?
+        Puppet::FileSystem.exclusive_open(paths_file, 0640, 'a+') do |f|
+          if Puppet::FileSystem.exist?(contents_file)
             verify_identical_file!(contents_file, bucket_file)
-            contents_file.touch
+            Puppet::FileSystem.touch(contents_file)
           else
-            contents_file.open(0440, 'wb') do |of|
+            Puppet::FileSystem.open(contents_file, 0440, 'wb') do |of|
               of.write(bucket_file.contents)
             end
           end
@@ -98,23 +104,28 @@ module Puppet::FileBucketFile
       if path == '' # Treat "md5/<checksum>/" like "md5/<checksum>"
         path = nil
       end
-      raise "Unsupported checksum type #{checksum_type.inspect}" if checksum_type != 'md5'
-      raise "Invalid checksum #{checksum.inspect}" if checksum !~ /^[0-9a-f]{32}$/
+      raise ArgumentError, "Unsupported checksum type #{checksum_type.inspect}" if checksum_type != Puppet[:digest_algorithm]
+      expected = method(checksum_type + "_hex_length").call
+      raise "Invalid checksum #{checksum.inspect}" if checksum !~ /^[0-9a-f]{#{expected}}$/
       [checksum, path]
     end
 
+    # @return [Object] Opaque path as constructed by the Puppet::FileSystem
+    #
     def path_for(bucket_path, digest, subfile = nil)
       bucket_path ||= Puppet[:bucketdir]
 
       dir     = ::File.join(digest[0..7].split(""))
       basedir = ::File.join(bucket_path, dir, digest)
 
-      Puppet::FileSystem::File.new(subfile ? ::File.join(basedir, subfile) : basedir)
+      Puppet::FileSystem.pathname(subfile ? ::File.join(basedir, subfile) : basedir)
     end
 
+    # @param contents_file [Object] Opaque file path
+    # @param bucket_file [IO]
     def verify_identical_file!(contents_file, bucket_file)
-      if bucket_file.contents.size == contents_file.size
-        if contents_file.compare_stream(bucket_file.stream)
+      if bucket_file.contents.size == Puppet::FileSystem.size(contents_file)
+        if Puppet::FileSystem.compare_stream(contents_file, bucket_file.stream)
           Puppet.info "FileBucket got a duplicate file #{bucket_file.checksum}"
           return
         end

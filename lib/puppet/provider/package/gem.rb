@@ -8,7 +8,7 @@ Puppet::Type.type(:package).provide :gem, :parent => Puppet::Provider::Package d
     interpreted as the path to a local gem file.  If source is not present at all,
     the gem will be installed from the default gem repositories."
 
-  has_feature :versionable
+  has_feature :versionable, :install_options
 
   commands :gemcmd => "gem"
 
@@ -32,7 +32,7 @@ Puppet::Type.type(:package).provide :gem, :parent => Puppet::Provider::Package d
         map {|set| gemsplit(set) }.
         reject {|x| x.nil? }
     rescue Puppet::ExecutionFailure => detail
-      raise Puppet::Error, "Could not list gems: #{detail}"
+      raise Puppet::Error, "Could not list gems: #{detail}", detail.backtrace
     end
 
     if options[:justme]
@@ -54,7 +54,7 @@ Puppet::Type.type(:package).provide :gem, :parent => Puppet::Provider::Package d
       versions = $2.split(/,\s*/)
       {
         :name     => name,
-        :ensure   => versions,
+        :ensure   => versions.map{|v| v.split[0]},
         :provider => :gem
       }
     else
@@ -77,7 +77,7 @@ Puppet::Type.type(:package).provide :gem, :parent => Puppet::Provider::Package d
       begin
         uri = URI.parse(source)
       rescue => detail
-        fail "Invalid source '#{uri}': #{detail}"
+        self.fail Puppet::Error, "Invalid source '#{uri}': #{detail}", detail
       end
 
       case uri.scheme
@@ -96,6 +96,8 @@ Puppet::Type.type(:package).provide :gem, :parent => Puppet::Provider::Package d
     else
       command << "--no-rdoc" << "--no-ri" << resource[:name]
     end
+
+    command += install_options if resource[:install_options]
 
     output = execute(command)
     # Apparently some stupid gem versions don't exit non-0 on failure
@@ -121,5 +123,9 @@ Puppet::Type.type(:package).provide :gem, :parent => Puppet::Provider::Package d
 
   def update
     self.install(false)
+  end
+
+  def install_options
+    join_options(resource[:install_options])
   end
 end

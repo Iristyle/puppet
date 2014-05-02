@@ -74,7 +74,7 @@ describe Puppet::Configurer do
       @facts = Puppet::Node::Facts.new(Puppet[:node_name_value])
       Puppet::Node::Facts.indirection.save(@facts)
 
-      @catalog = Puppet::Resource::Catalog.new
+      @catalog = Puppet::Resource::Catalog.new("tester", Puppet::Node::Environment.remote(Puppet[:environment].to_sym))
       @catalog.stubs(:to_ral).returns(@catalog)
       Puppet::Resource::Catalog.indirection.terminus_class = :rest
       Puppet::Resource::Catalog.indirection.stubs(:find).returns(@catalog)
@@ -464,7 +464,7 @@ describe Puppet::Configurer do
 
     it "should write the last run file" do
       @configurer.save_last_run_summary(@report)
-      Puppet::FileSystem::File.exist?(Puppet[:lastrunfile]).should be_true
+      Puppet::FileSystem.exist?(Puppet[:lastrunfile]).should be_true
     end
 
     it "should write the raw summary as yaml" do
@@ -496,7 +496,7 @@ describe Puppet::Configurer do
         require 'puppet/util/windows/security'
         mode = Puppet::Util::Windows::Security.get_mode(Puppet[:lastrunfile])
       else
-        mode = Puppet::FileSystem::File.new(Puppet[:lastrunfile]).stat.mode
+        mode = Puppet::FileSystem.stat(Puppet[:lastrunfile]).mode
       end
       (mode & 0777).should == 0664
     end

@@ -8,7 +8,6 @@ require 'puppet/network/http/compression'
 
 # Access objects via REST
 class Puppet::Indirector::REST < Puppet::Indirector::Terminus
-  include Puppet::Network::HTTP::API::V1
   include Puppet::Network::HTTP::Compression.module
 
   class << self
@@ -85,7 +84,7 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
   end
 
   def find(request)
-    uri, body = request_to_uri_and_body(request)
+    uri, body = Puppet::Network::HTTP::API::V1.request_to_uri_and_body(request)
     uri_with_query_string = "#{uri}?#{body}"
 
     response = do_request(request) do |request|
@@ -104,6 +103,20 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
       result = deserialize_find(content_type, body)
       result.name = request.key if result.respond_to?(:name=)
       result
+
+    elsif is_http_404?(response)
+      # 404 gets special treatment as the indirector API can not produce a meaningful
+      # reason to why something is not found - it may not be the thing the user is
+      # expecting to find that is missing, but something else (like the environment).
+      # While this way of handling the issue is not perfect, there is at least a warning
+      # that makes a user aware of the reason for the failure.
+      #
+      content_type, body = parse_response(response)
+      msg = "Find #{uri_with_query_string} resulted in 404 with the message: #{body}"
+      # warn_once
+      Puppet::Util::Warnings.maybe_log(msg, self.class){ Puppet.warning msg }
+      nil
+
     else
       nil
     end
@@ -111,7 +124,7 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
 
   def head(request)
     response = do_request(request) do |request|
-      http_head(request, indirection2uri(request), headers)
+      http_head(request, Puppet::Network::HTTP::API::V1.indirection2uri(request), headers)
     end
 
     if is_http_200?(response)
@@ -124,7 +137,7 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
 
   def search(request)
     response = do_request(request) do |request|
-      http_get(request, indirection2uri(request), headers)
+      http_get(request, Puppet::Network::HTTP::API::V1.indirection2uri(request), headers)
     end
 
     if is_http_200?(response)
@@ -140,7 +153,7 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
     raise ArgumentError, "DELETE does not accept options" unless request.options.empty?
 
     response = do_request(request) do |request|
-      http_delete(request, indirection2uri(request), headers)
+      http_delete(request, Puppet::Network::HTTP::API::V1.indirection2uri(request), headers)
     end
 
     if is_http_200?(response)
@@ -156,7 +169,7 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
     raise ArgumentError, "PUT does not accept options" unless request.options.empty?
 
     response = do_request(request) do |request|
-      http_put(request, indirection2uri(request), request.instance.render, headers.merge({ "Content-Type" => request.instance.mime }))
+      http_put(request, Puppet::Network::HTTP::API::V1.indirection2uri(request), request.instance.render, headers.merge({ "Content-Type" => request.instance.mime }))
     end
 
     if is_http_200?(response)
@@ -194,6 +207,10 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
       # Raise the http error if we didn't get a 'success' of some kind.
       raise convert_to_http_error(response)
     end
+  end
+
+  def is_http_404?(response)
+    response.code == "404"
   end
 
   def convert_to_http_error(response)
@@ -242,6 +259,6 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
   end
 
   def environment
-    Puppet::Node::Environment.new
+    Puppet.lookup(:environments).get(Puppet[:environment])
   end
 end

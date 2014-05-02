@@ -4,18 +4,17 @@ require 'puppet/util/filetype'
 
 Puppet::Type.newtype(:cron) do
   @doc = <<-'EOT'
-    Installs and manages cron jobs.  Every cron resource requires a command
-    and user attribute, as well as at least one periodic attribute (hour,
-    minute, month, monthday, weekday, or special).  While the name of the cron
-    job is not part of the actual job, it is used by Puppet to store and
-    retrieve it.
+    Installs and manages cron jobs.  Every cron resource created by Puppet
+    requires a command and at least one periodic attribute (hour, minute,
+    month, monthday, weekday, or special).  While the name of the cron job is
+    not part of the actual job, the name is stored in a comment beginning with
+    `# Puppet Name: `. These comments are used to match crontab entries created
+    by Puppet with cron resources.
 
-    If you specify a cron resource that duplicates the scheduling and command
-    used by an existing crontab entry, then Puppet will take no action and
-    defers to the existing crontab entry.  If the duplicate cron resource
-    specifies `ensure => absent`, all existing duplicated crontab entries will
-    be removed.  Specifying multiple duplicate cron resources with different
-    `ensure` states will result in undefined behavior.
+    If an existing crontab entry happens to match the scheduling and command of a
+    cron resource that has never been synched, Puppet will defer to the existing
+    crontab entry and will not create a new entry tagged with the `# Puppet Name: `
+    comment.
 
     Example:
 
@@ -50,6 +49,10 @@ Puppet::Type.newtype(:cron) do
     These changes must be expressed by setting the parameter to
     `minute => absent` because Puppet only manages parameters that are out of
     sync with manifest entries.
+
+    **Autorequires:** If Puppet is managing the user account specified by the
+    `user` property of a cron resource, then the cron resource will autorequire
+    that user.
   EOT
   ensurable
 
@@ -234,9 +237,7 @@ Puppet::Type.newtype(:cron) do
     end
 
     def munge(value)
-      value.sub!(/^\s+/, '')
-      value.sub!(/\s+$/, '')
-      value
+      value.strip
     end
   end
 
@@ -371,15 +372,20 @@ Puppet::Type.newtype(:cron) do
   end
 
   newproperty(:user) do
-    desc "The user to run the command as.  This user must
+    desc "The user who owns the cron job.  This user must
       be allowed to run cron jobs, which is not currently checked by
       Puppet.
 
-      The user defaults to whomever Puppet is running as."
+      This property defaults to the user running Puppet or `root`.
+
+      The default crontab provider executes the system `crontab` using
+      the user account specified by this property."
 
     defaultto {
-      struct = Etc.getpwuid(Process.uid)
-      struct.respond_to?(:name) && struct.name or 'root'
+      if not provider.is_a?(@resource.class.provider(:crontab))
+        struct = Etc.getpwuid(Process.uid)
+        struct.respond_to?(:name) && struct.name or 'root'
+      end
     }
   end
 
@@ -389,17 +395,23 @@ Puppet::Type.newtype(:cron) do
   end
 
   newproperty(:target) do
-    desc "The username that will own the cron entry. Defaults to
-    the value of $USER for the shell that invoked Puppet, or root if $USER
-    is empty."
+    desc "The name of the crontab file in which the cron job should be stored.
+
+      This property defaults to the value of the `user` property if set, the
+      user running Puppet or `root`.
+
+      For the default crontab provider, this property is functionally
+      equivalent to the `user` property and should be avoided. In particular,
+      setting both `user` and `target` to different values will result in
+      undefined behavior."
 
     defaultto {
       if provider.is_a?(@resource.class.provider(:crontab))
         if val = @resource.should(:user)
           val
         else
-          raise ArgumentError,
-            "You must provide a username with crontab entries"
+          struct = Etc.getpwuid(Process.uid)
+          struct.respond_to?(:name) && struct.name or 'root'
         end
       elsif provider.class.ancestors.include?(Puppet::Provider::ParsedFile)
         provider.class.default_target
@@ -409,9 +421,42 @@ Puppet::Type.newtype(:cron) do
     }
   end
 
+  validate do
+    return true unless self[:special]
+    return true if self[:special] == :absent
+    # there is a special schedule in @should, so we don't want to see
+    # any numeric should values
+    [ :minute, :hour, :weekday, :monthday, :month ].each do |field|
+      next unless self[field]
+      next if self[field] == :absent
+      raise ArgumentError, "#{self.ref} cannot specify both a special schedule and a value for #{field}"
+    end
+  end
+
   # We have to reorder things so that :provide is before :target
 
   attr_accessor :uid
+
+  # Marks the resource as "being purged".
+  #
+  # @api public
+  #
+  # @note This overrides the Puppet::Type method in order to handle
+  #   an edge case that has so far been observed during testig only.
+  #   Without forcing the should-value for the user property to be
+  #   identical to the original cron file, purging from a fixture
+  #   will not work, because the user property defaults to the user
+  #   running the test. It is not clear whether this scenario can apply
+  #   during normal operation.
+  #
+  # @note Also, when not forcing the should-value for the target
+  #   property, unpurged file content (such as comments) can end up
+  #   being written to the default target (i.e. the current login name).
+  def purging
+    self[:target] = provider.target
+    self[:user] = provider.target
+    super
+  end
 
   def value(name)
     name = name.intern
@@ -429,7 +474,6 @@ Puppet::Type.newtype(:cron) do
     unless ret
       case name
       when :command
-        devfail "No command, somehow" unless @parameters[:ensure].value == :absent
       when :special
         # nothing
       else

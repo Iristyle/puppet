@@ -17,6 +17,10 @@ describe provider_class do
     provider
   end
 
+  before :each do
+    resource.provider = provider
+  end
+
   describe "when installing" do
     it "should use the path to the gem" do
       provider_class.stubs(:command).with(:gemcmd).returns "/my/gem"
@@ -41,6 +45,17 @@ describe provider_class do
 
     it "should specify the package name" do
       provider.expects(:execute).with { |args| args[4] == "myresource" }.returns ""
+      provider.install
+    end
+
+    it "should not append install_options by default" do
+      provider.expects(:execute).with { |args| args.length == 5 }.returns ""
+      provider.install
+    end
+
+    it "should allow setting an install_options parameter" do
+      resource[:install_options] = [ '--force', {'--bindir' => '/usr/bin' } ]
+      provider.expects(:execute).with { |args| args[5] == '--force' && args[6] == '--bindir=/usr/bin' }.returns ''
       provider.install
     end
 
@@ -127,6 +142,18 @@ describe provider_class do
       provider_class.instances.map {|p| p.properties}.should == [
         {:ensure => ["1.2.0"],          :provider => :gem, :name => 'systemu'},
         {:ensure => ["0.8.7", "0.6.9"], :provider => :gem, :name => 'vagrant'}
+      ]
+    end
+
+    it "should ignore platform specifications" do
+      provider_class.expects(:execute).with(%w{/my/gem list --local}).returns <<-HEREDOC.gsub(/        /, '')
+        systemu (1.2.0)
+        nokogiri (1.6.1 ruby java x86-mingw32 x86-mswin32-60, 1.4.4.1 x86-mswin32)
+      HEREDOC
+
+      provider_class.instances.map {|p| p.properties}.should == [
+        {:ensure => ["1.2.0"],          :provider => :gem, :name => 'systemu'},
+        {:ensure => ["1.6.1", "1.4.4.1"], :provider => :gem, :name => 'nokogiri'}
       ]
     end
 

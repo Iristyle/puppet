@@ -58,17 +58,20 @@ Puppet::Face.define(:module, '1.0.0') do
     EOT
 
     when_invoked do |options|
-      Puppet[:modulepath] = options[:modulepath] if options[:modulepath]
-      environment = Puppet::Node::Environment.new(options[:environment])
+      Puppet::ModuleTool.set_option_defaults(options)
+      environment = options[:environment_instance]
 
-      environment.modules_by_path
+      {
+        :environment     => environment,
+        :modules_by_path => environment.modules_by_path,
+      }
     end
 
-    when_rendering :console do |modules_by_path, options|
-      output = ''
+    when_rendering :console do |result, options|
+      environment     = result[:environment]
+      modules_by_path = result[:modules_by_path]
 
-      Puppet[:modulepath] = options[:modulepath] if options[:modulepath]
-      environment = Puppet::Node::Environment.new(options[:environment])
+      output = ''
 
       warn_unmet_requirements(environment)
       warn_unmet_dependencies(environment)

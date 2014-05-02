@@ -103,7 +103,7 @@ class Puppet::Parser::Collector
 
       # key is '#{type}/#{name}', and host and filter.
       found = Puppet::Resource.indirection.
-        search(@type, :host => @scope.host, :filter => @equery, :scope => @scope)
+        search(@type, :host => @scope.compiler.node.name, :filter => @equery, :scope => @scope)
 
       found_resources = found.map {|x| x.is_a?(Puppet::Parser::Resource) ? x : x.to_resource(@scope)}
 
@@ -112,7 +112,7 @@ class Puppet::Parser::Collector
           unless existing.collector_id == item.collector_id
             # unless this is the one we've already collected
             raise Puppet::ParseError,
-              "Another local or imported resource exists with the type and title #{item.ref}"
+              "A duplicate resource was found while collecting exported resources, with the type and title #{item.ref}"
           end
         else
           item.exported = false

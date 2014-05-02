@@ -10,7 +10,7 @@ module Puppet::ModuleTool
         @unfiltered  = []
         @installed   = []
         @suggestions = []
-        @environment = Puppet::Node::Environment.new(options[:environment])
+        @environment = options[:environment_instance]
       end
 
       def run
@@ -88,13 +88,19 @@ module Puppet::ModuleTool
         mod = @installed.first
 
         if !@options[:force] && mod.has_metadata?
-          if mod.has_local_changes?
+          changes = begin
+            Puppet::ModuleTool::Applications::Checksummer.run(mod.path)
+          rescue ArgumentError
+            []
+          end
+
+          if !changes.empty?
             raise LocalChangesError,
               :action            => :uninstall,
               :module_name       => (mod.forge_name || mod.name).gsub('/', '-'),
               :requested_version => @options[:version],
               :installed_version => mod.version
-            end
+          end
 
           if !mod.required_by.empty?
             raise ModuleIsRequiredError,

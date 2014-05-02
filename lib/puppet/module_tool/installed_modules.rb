@@ -11,8 +11,8 @@ module Puppet::ModuleTool
       10
     end
 
-    def initialize
-      env = Puppet::Node::Environment.current
+    def initialize(env)
+      @env = env
       modules = env.modules_by_path
 
       @fetched = []
@@ -30,6 +30,12 @@ module Puppet::ModuleTool
       @modules.freeze
     end
 
+    # Fetches {ModuleRelease} entries for each release of the named module.
+    #
+    # @param name [String] the module name to look up
+    # @return [Array<Semantic::Dependency::ModuleRelease>] a list of releases for
+    #         the given name
+    # @see Semantic::Dependency::Source#fetch
     def fetch(name)
       name = name.tr('/', '-')
 

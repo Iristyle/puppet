@@ -44,10 +44,10 @@ class Puppet::Configurer
   rescue => detail
     Puppet.log_exception(detail, "Removing corrupt state file #{Puppet[:statefile]}: #{detail}")
     begin
-      Puppet::FileSystem::File.unlink(Puppet[:statefile])
+      Puppet::FileSystem.unlink(Puppet[:statefile])
       retry
     rescue => detail
-      raise Puppet::Error.new("Cannot remove #{Puppet[:statefile]}: #{detail}")
+      raise Puppet::Error.new("Cannot remove #{Puppet[:statefile]}: #{detail}", detail)
     end
   end
 
@@ -90,7 +90,10 @@ class Puppet::Configurer
   end
 
   def get_facts(options)
-    download_plugins if options[:pluginsync]
+    if options[:pluginsync]
+      remote_environment_for_plugins = Puppet::Node::Environment.remote(@environment)
+      download_plugins(remote_environment_for_plugins)
+    end
 
     if Puppet::Resource::Catalog.indirection.terminus_class == :rest
       # This is a bit complicated.  We need the serialized and escaped facts,
@@ -148,20 +151,23 @@ class Puppet::Configurer
         query_options = get_facts(options)
       end
 
-      begin
-        if node = Puppet::Node.indirection.find(Puppet[:node_name_value],
-            :environment => @environment, :ignore_cache => true)
-          if node.environment.to_s != @environment
-            Puppet.warning "Local environment: \"#{@environment}\" doesn't match server specified node environment \"#{node.environment}\", switching agent to \"#{node.environment}\"."
-            @environment = node.environment.to_s
-            query_options = nil
+      # We only need to find out the environment to run in if we don't already have a catalog
+      unless options[:catalog]
+        begin
+          if node = Puppet::Node.indirection.find(Puppet[:node_name_value],
+              :environment => @environment, :ignore_cache => true)
+            if node.environment.to_s != @environment
+              Puppet.warning "Local environment: \"#{@environment}\" doesn't match server specified node environment \"#{node.environment}\", switching agent to \"#{node.environment}\"."
+              @environment = node.environment.to_s
+              query_options = nil
+            end
           end
+        rescue SystemExit,NoMemoryError
+          raise
+        rescue Exception => detail
+          Puppet.warning("Unable to fetch my node definition, but the agent run will continue:")
+          Puppet.warning(detail)
         end
-      rescue SystemExit,NoMemoryError
-        raise
-      rescue Exception => detail
-        Puppet.warning("Unable to fetch my node definition, but the agent run will continue:")
-        Puppet.warning(detail)
       end
 
       query_options = get_facts(options) unless query_options

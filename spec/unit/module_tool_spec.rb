@@ -6,14 +6,25 @@ require 'puppet/module_tool'
 
 describe Puppet::ModuleTool do
   describe '.is_module_root?' do
-    it 'should return true if directory has a module file' do
+    it 'should return true if directory has a Modulefile file' do
+      FileTest.expects(:file?).with(responds_with(:to_s, '/a/b/c/metadata.json')).
+        returns(false)
       FileTest.expects(:file?).with(responds_with(:to_s, '/a/b/c/Modulefile')).
         returns(true)
 
       subject.is_module_root?(Pathname.new('/a/b/c')).should be_true
     end
 
-    it 'should return false if directory does not have a module file' do
+    it 'should return true if directory has a metadata.json file' do
+      FileTest.expects(:file?).with(responds_with(:to_s, '/a/b/c/metadata.json')).
+        returns(true)
+
+      subject.is_module_root?(Pathname.new('/a/b/c')).should be_true
+    end
+
+    it 'should return false if directory does not have a metadata.json or a Modulefile file' do
+      FileTest.expects(:file?).with(responds_with(:to_s, '/a/b/c/metadata.json')).
+        returns(false)
       FileTest.expects(:file?).with(responds_with(:to_s, '/a/b/c/Modulefile')).
         returns(false)
 
@@ -154,123 +165,134 @@ TREE
   end
 
   describe '.set_option_defaults' do
-    describe 'option :environment' do
-      context 'passed:' do
-        let (:environment) { "ahgkduerh" }
-        let (:options) { {:environment => environment} }
+    let(:options) { {} }
+    let(:modulepath) { ['/env/module/path', '/global/module/path'] }
+    let(:environment_name) { :current_environment }
+    let(:environment) { Puppet::Node::Environment.create(environment_name, modulepath) }
 
-        it 'Puppet[:environment] should be set to the value of the option' do
-          subject.set_option_defaults options
+    subject do
+      described_class.set_option_defaults(options)
+      options
+    end
 
-          Puppet[:environment].should == environment
-        end
+    around do |example|
+      envs = Puppet::Environments::Combined.new(
+        Puppet::Environments::Static.new(environment),
+        Puppet::Environments::Legacy.new
+      )
 
-        it 'the option value should not be overridden' do
-          Puppet[:environment] = :foo
-          subject.set_option_defaults options
+      Puppet.override(:environments => envs) do
+        example.run
+      end
+    end
 
-          options[:environment].should == environment
+    describe ':environment' do
+      context 'as String' do
+        let(:options) { { :environment => "#{environment_name}" } }
+
+        it 'assigns the environment with the given name to :environment_instance' do
+          expect(subject).to include :environment_instance => environment
         end
       end
 
-      context 'NOT passed:' do
-        it 'Puppet[:environment] should NOT be overridden' do
-          Puppet[:environment] = :foo
+      context 'as Symbol' do
+        let(:options) { { :environment => :"#{environment_name}" } }
 
-          subject.set_option_defaults({})
-          Puppet[:environment].should == :foo
+        it 'assigns the environment with the given name to :environment_instance' do
+          expect(subject).to include :environment_instance => environment
         end
+      end
 
-        it 'the option should be set to the value of Puppet[:environment]' do
-          options_to_modify = Hash.new
-          Puppet[:environment] = :abcdefg
+      context 'as Puppet::Node::Environment' do
+        let(:env) { Puppet::Node::Environment.create('anonymous', []) }
+        let(:options) { { :environment => env } }
 
-          subject.set_option_defaults options_to_modify
-
-          options_to_modify[:environment].should == :abcdefg
+        it 'assigns the given environment to :environment_instance' do
+          expect(subject).to include :environment_instance => env
         end
       end
     end
 
-    describe 'option :modulepath' do
-      context 'passed:' do
-        let (:modulepath) { PuppetSpec::Files.make_absolute('/bar') }
-        let (:options) { {:modulepath => modulepath} }
-
-        it 'Puppet[:modulepath] should be set to the value of the option' do
-
-          subject.set_option_defaults options
-
-          Puppet[:modulepath].should == modulepath
-        end
-
-        it 'the option value should not be overridden' do
-          Puppet[:modulepath] = "/foo"
-
-          subject.set_option_defaults options
-
-          options[:modulepath].should == modulepath
-        end
+    describe ':modulepath' do
+      let(:options) do
+        { :modulepath => %w[bar foo baz].join(File::PATH_SEPARATOR) }
       end
 
-      context 'NOT passed:' do
-        let (:options) { {:environment => :pmttestenv} }
+      let(:paths) { options[:modulepath].split(File::PATH_SEPARATOR).map { |dir| File.expand_path(dir) } }
 
-        before(:each) do
-          Puppet.settings.parse_config(<<-CONF)
-          [pmttestenv]
-          modulepath = #{["/foo", "/bar", "/no"].join(File::PATH_SEPARATOR)}
-          CONF
-          Puppet[:modulepath] = "/no"
-          Puppet[:environment] = :pmttestenv
+      it 'is expanded to an absolute path' do
+        expect(subject[:environment_instance].full_modulepath).to eql paths
+      end
+
+      it 'is used to compute :target_dir' do
+        expect(subject).to include :target_dir => paths.first
+      end
+
+      context 'conflicts with :environment' do
+        let(:options) do
+          { :modulepath => %w[bar foo baz].join(File::PATH_SEPARATOR), :environment => environment_name }
         end
 
-        it 'Puppet[:modulepath] should be reset to the module path of the current environment' do
-          subject.set_option_defaults options
-
-          Puppet[:modulepath].should == Puppet.settings.value(:modulepath, :pmttestenv)
+        it 'replaces the modulepath of the :environment_instance' do
+          expect(subject[:environment_instance].full_modulepath).to eql paths
         end
 
-        it 'the option should be set to the module path of the current environment' do
-          subject.set_option_defaults options
-
-          options[:modulepath].should == Puppet.settings.value(:modulepath, :pmttestenv)
+        it 'is used to compute :target_dir' do
+          expect(subject).to include :target_dir => paths.first
         end
       end
     end
 
-    describe 'option :target_dir' do
-      let (:target_dir) { 'boo' }
+    describe ':target_dir' do
+      let(:options) do
+        { :target_dir => 'foo' }
+      end
 
-      context 'passed:' do
-        let (:options) { {:target_dir => target_dir} }
+      let(:target) { File.expand_path(options[:target_dir]) }
 
-        it 'the option value should be prepended to the Puppet[:modulepath]' do
-          Puppet[:modulepath] = "/fuz"
-          original_modulepath = Puppet[:modulepath]
+      it 'is expanded to an absolute path' do
+        expect(subject).to include :target_dir => target
+      end
 
-          subject.set_option_defaults options
+      it 'is prepended to the modulepath of the :environment_instance' do
+        expect(subject[:environment_instance].full_modulepath.first).to eql target
+      end
 
-          Puppet[:modulepath].should == options[:target_dir] + File::PATH_SEPARATOR + original_modulepath
+      context 'conflicts with :modulepath' do
+        let(:options) do
+          { :target_dir => 'foo', :modulepath => %w[bar foo baz].join(File::PATH_SEPARATOR) }
         end
 
-        it 'the option value should be turned into an absolute path' do
-          subject.set_option_defaults options
+        it 'is prepended to the modulepath of the :environment_instance' do
+          expect(subject[:environment_instance].full_modulepath.first).to eql target
+        end
 
-          options[:target_dir].should == File.expand_path(target_dir)
+        it 'shares the provided :modulepath via the :environment_instance' do
+          paths = %w[foo] + options[:modulepath].split(File::PATH_SEPARATOR)
+          paths.map! { |dir| File.expand_path(dir) }
+          expect(subject[:environment_instance].full_modulepath).to eql paths
         end
       end
 
-      describe 'NOT passed:' do
-        before :each do
-          Puppet[:modulepath] = 'foo' + File::PATH_SEPARATOR + 'bar'
+      context 'conflicts with :environment' do
+        let(:options) do
+          { :target_dir => 'foo', :environment => environment_name }
         end
 
-        it 'the option should be set to the first component of Puppet[:modulepath]' do
-          options = Hash.new
-          subject.set_option_defaults options
+        it 'is prepended to the modulepath of the :environment_instance' do
+          expect(subject[:environment_instance].full_modulepath.first).to eql target
+        end
 
-          options[:target_dir].should == Puppet[:modulepath].split(File::PATH_SEPARATOR)[0]
+        it 'shares the provided :modulepath via the :environment_instance' do
+          paths = %w[foo] + environment.full_modulepath
+          paths.map! { |dir| File.expand_path(dir) }
+          expect(subject[:environment_instance].full_modulepath).to eql paths
+        end
+      end
+
+      context 'when not passed' do
+        it 'is populated with the first component of the modulepath' do
+          expect(subject).to include :target_dir => subject[:environment_instance].full_modulepath.first
         end
       end
     end

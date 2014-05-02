@@ -11,7 +11,7 @@ module Puppet
     extend Puppet::Util::Colors
 
     # Directory and names that should not be checksummed.
-    ARTIFACTS = ['pkg', /^\./, /^~/, /^#/, 'coverage', 'metadata.json', 'REVISION']
+    ARTIFACTS = ['pkg', /^\./, /^~/, /^#/, 'coverage', 'checksums.json', 'REVISION']
     FULL_MODULE_NAME_PATTERN = /\A([^-\/|.]+)[-|\/](.+)\z/
     REPOSITORY_URL = Puppet.settings[:module_repository]
 
@@ -57,14 +57,14 @@ module Puppet
     end
 
     # Analyse path to see if it is a module root directory by detecting a
-    # file named 'Modulefile' in the directory.
+    # file named 'metadata.json' or 'Modulefile' in the directory.
     #
     # @param path [Pathname, String] path to analyse
     # @return [Boolean] true if the path is a module root, false otherwise
     def self.is_module_root?(path)
       path = Pathname.new(path) if path.class == String
 
-      FileTest.file?(path + 'Modulefile')
+      FileTest.file?(path + 'metadata.json') || FileTest.file?(path + 'Modulefile')
     end
 
     # Builds a formatted tree from a list of node hashes containing +:text+
@@ -98,41 +98,61 @@ module Puppet
           version_string = "#{previous_version} -> #{version_string}"
         end
 
-        mod[:text] = "#{mod[:release].name} (#{colorize(:cyan, version_string)})"
+        mod[:text] = "#{mod[:name]} (#{colorize(:cyan, version_string)})"
         mod[:text] += " [#{mod[:path]}]" unless mod[:path].to_s == dir.to_s
 
-        deps = (mod[:dependencies] || []).sort_by! { |x| x[:release].name }
+        deps = (mod[:dependencies] || [])
+        deps.sort! { |a, b| a[:name] <=> b[:name] }
         build_tree(deps, dir)
       end
     end
 
+    # @param options [Hash<Symbol,String>] This hash will contain any
+    #   command-line arguments that are not Settings, as those will have already
+    #   been extracted by the underlying application code.
+    #
+    # @note Unfortunately the whole point of this method is the side effect of
+    # modifying the options parameter.  This same hash is referenced both
+    # when_invoked and when_rendering.  For this reason, we are not returning
+    # a duplicate.
+    # @todo Validate the above note...
+    #
+    # An :environment_instance and a :target_dir are added/updated in the
+    # options parameter.
+    #
+    # @api private
     def self.set_option_defaults(options)
-      sep = File::PATH_SEPARATOR
+      current_environment = environment_from_options(options)
 
-      if options[:environment]
-        Puppet.settings[:environment] = options[:environment]
-      else
-        options[:environment] = Puppet.settings[:environment]
-      end
+      modulepath = [options[:target_dir]] + current_environment.full_modulepath
 
+      face_environment = current_environment.override_with(:modulepath => modulepath.compact)
+
+      options[:environment_instance] = face_environment
+
+      # Note: environment will have expanded the path
+      options[:target_dir] = face_environment.full_modulepath.first
+    end
+
+    # Given a hash of options, we should discover or create a
+    # {Puppet::Node::Environment} instance that reflects the provided options.
+    #
+    # Generally speaking, the `:modulepath` parameter should supercede all
+    # others, the `:environment` parameter should follow after that, and we
+    # should default to Puppet's current environment.
+    #
+    # @param options [{Symbol => Object}] the options to derive environment from
+    # @return [Puppet::Node::Environment] the environment described by the options
+    def self.environment_from_options(options)
       if options[:modulepath]
-        Puppet.settings[:modulepath] = options[:modulepath]
+        path = options[:modulepath].split(File::PATH_SEPARATOR)
+        Puppet::Node::Environment.create(:anonymous, path, '')
+      elsif options[:environment].is_a?(Puppet::Node::Environment)
+        options[:environment]
+      elsif options[:environment]
+        Puppet.lookup(:environments).get(options[:environment])
       else
-        # (#14872) make sure the module path of the desired environment is used
-        # when determining the default value of the --target-dir option
-        Puppet.settings[:modulepath] = options[:modulepath] =
-          Puppet.settings.value(:modulepath, options[:environment])
-      end
-
-      if options[:target_dir]
-        options[:target_dir] = File.expand_path(options[:target_dir])
-        # prepend the target dir to the module path
-        Puppet.settings[:modulepath] = options[:modulepath] =
-          options[:target_dir] + sep + options[:modulepath]
-      else
-        # default to the first component of the module path
-        options[:target_dir] =
-          File.expand_path(options[:modulepath].split(sep).first)
+        Puppet.lookup(:current_environment)
       end
     end
 
@@ -169,6 +189,5 @@ require 'puppet/module_tool/contents_description'
 require 'puppet/module_tool/dependency'
 require 'puppet/module_tool/metadata'
 require 'puppet/module_tool/modulefile'
-require 'puppet/module_tool/skeleton'
 require 'puppet/forge/cache'
 require 'puppet/forge'

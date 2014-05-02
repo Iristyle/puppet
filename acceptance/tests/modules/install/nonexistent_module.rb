@@ -35,7 +35,7 @@ on master, puppet("module --render-as json install #{module_author}-#{module_nam
 
   assert_equal 'failure', json['result']
   assert_equal "#{module_author}-#{module_name}", json['module_name']
-  assert_equal '>= 0', json['module_version']
+  assert_equal '>= 0.0.0', json['module_version']
   assert_equal master['distmoduledir'], json['install_dir']
   assert_match oneline_expectation, json['error']['oneline']
   assert_match multiline_expectation, json['error']['multiline']

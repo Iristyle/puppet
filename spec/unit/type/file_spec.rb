@@ -664,7 +664,7 @@ describe Puppet::Type.type(:file) do
     end
   end
 
-  describe "#recurse_remote" do
+  describe "#recurse_remote", :uses_checksums => true do
     let(:my) { File.expand_path('/my') }
 
     before do
@@ -722,12 +722,14 @@ describe Puppet::Type.type(:file) do
 
     # LAK:FIXME This is a bug, but I can't think of a fix for it.  Fortunately it's already
     # filed, and when it's fixed, we'll just fix the whole flow.
-    it "should set the checksum type to :md5 if the remote file is a file" do
-      @first.stubs(:ftype).returns "file"
-      file.stubs(:perform_recursion).returns [@first]
-      @resource.stubs(:[]=)
-      @resource.expects(:[]=).with(:checksum, :md5)
-      file.recurse_remote("first" => @resource)
+    with_digest_algorithms do
+      it "it should set the checksum type to #{metadata[:digest_algorithm]} if the remote file is a file" do
+        @first.stubs(:ftype).returns "file"
+        file.stubs(:perform_recursion).returns [@first]
+        @resource.stubs(:[]=)
+        @resource.expects(:[]=).with(:checksum, digest_algorithm.intern)
+        file.recurse_remote("first" => @resource)
+      end
     end
 
     it "should store the metadata in the source property for each resource so the source does not have to requery the metadata" do
@@ -920,7 +922,7 @@ describe Puppet::Type.type(:file) do
 
       file.remove_existing(:directory).should == true
 
-      Puppet::FileSystem::File.exist?(file[:path]).should == false
+      Puppet::FileSystem.exist?(file[:path]).should == false
     end
 
     it "should remove an existing link", :if => described_class.defaultprovider.feature?(:manages_symlinks) do
@@ -928,12 +930,12 @@ describe Puppet::Type.type(:file) do
 
       target = tmpfile('link_target')
       FileUtils.touch(target)
-      Puppet::FileSystem::File.new(target).symlink(path)
+      Puppet::FileSystem.symlink(target, path)
       file[:target] = target
 
       file.remove_existing(:directory).should == true
 
-      Puppet::FileSystem::File.exist?(file[:path]).should == false
+      Puppet::FileSystem.exist?(file[:path]).should == false
     end
 
     it "should fail if the file is not a file, link, or directory" do
@@ -947,7 +949,7 @@ describe Puppet::Type.type(:file) do
       file.stat
       file.stubs(:stat).returns stub('stat', :ftype => 'file')
 
-      Puppet::FileSystem::File.stubs(:unlink)
+      Puppet::FileSystem.stubs(:unlink)
 
       file.remove_existing(:directory).should == true
       file.instance_variable_get(:@stat).should == :needs_stat
@@ -1009,7 +1011,7 @@ describe Puppet::Type.type(:file) do
     before do
       target = tmpfile('link_target')
       FileUtils.touch(target)
-      Puppet::FileSystem::File.new(target).symlink(path)
+      Puppet::FileSystem.symlink(target, path)
 
       file[:target] = target
       file[:links] = :manage # so we always use :lstat
@@ -1373,7 +1375,7 @@ describe Puppet::Type.type(:file) do
       catalog.apply
 
       # I convert them to strings so they display correctly if there's an error.
-      (Puppet::FileSystem::File.new(@target).stat.mode & 007777).to_s(8).should == '644'
+      (Puppet::FileSystem.stat(@target).mode & 007777).to_s(8).should == '644'
     end
 
     it "should manage the mode of the followed link" do
@@ -1382,7 +1384,7 @@ describe Puppet::Type.type(:file) do
         @link_resource[:links] = :follow
         catalog.apply
 
-        (Puppet::FileSystem::File.new(@target).stat.mode & 007777).to_s(8).should == '755'
+        (Puppet::FileSystem.stat(@target).mode & 007777).to_s(8).should == '755'
       end
     end
   end
@@ -1466,7 +1468,7 @@ describe Puppet::Type.type(:file) do
 
       catalog.apply
 
-      Puppet::FileSystem::File.exist?(path).should be_true
+      Puppet::FileSystem.exist?(path).should be_true
       @logs.should_not be_any {|l| l.level != :notice }
     end
   end

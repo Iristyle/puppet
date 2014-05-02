@@ -16,7 +16,7 @@ module Puppet::ModuleTool
         super(options)
 
         @action              = :upgrade
-        @environment         = Puppet::Node::Environment.new(Puppet.settings[:environment])
+        @environment         = options[:environment_instance]
         @name                = name
         @ignore_dependencies = forced? || options[:ignore_dependencies]
 
@@ -26,7 +26,7 @@ module Puppet::ModuleTool
 
       def run
         name = @name.tr('/', '-')
-        version = options[:version] || '>= 0'
+        version = options[:version] || '>= 0.0.0'
 
         results = {
           :action => :upgrade,
@@ -34,7 +34,7 @@ module Puppet::ModuleTool
         }
 
         begin
-          all_modules = Puppet::Node::Environment.current.modules_by_path.values.flatten
+          all_modules = @environment.modules_by_path.values.flatten
           matching_modules = all_modules.select do |x|
             x.forge_name && x.forge_name.tr('/', '-') == name
           end
@@ -46,6 +46,20 @@ module Puppet::ModuleTool
           end
 
           mod = installed_modules[name]
+
+          # `priority` is an attribute of a `Semantic::Dependency::Source`,
+          # which is delegated through `ModuleRelease` instances for the sake of
+          # comparison (sorting). By default, the `InstalledModules` source has
+          # a priority of 10 (making it the most preferable source, so that
+          # already installed versions of modules are selected in preference to
+          # modules from e.g. the Forge). Since we are specifically looking to
+          # upgrade this module, we don't want the installed version of this
+          # module to be chosen in preference to those with higher versions.
+          #
+          # This implementation is suboptimal, and since we can expect this sort
+          # of behavior to be reasonably common in Semantic, we should probably
+          # see about implementing a `ModuleRelease#override_priority` method
+          # (or something similar).
           def mod.priority
             0
           end
@@ -57,7 +71,8 @@ module Puppet::ModuleTool
           vstring = mod.version ? "v#{mod.version}" : '???'
           Puppet.notice "Found '#{name}' (#{colorize(:cyan, vstring)}) in #{dir} ..."
           unless forced?
-            if mod.has_metadata? && mod.has_local_changes?
+            changes = Checksummer.run(mod.path) rescue []
+            if mod.has_metadata? && !changes.empty?
               raise LocalChangesError,
                 :action            => :upgrade,
                 :module_name       => name,
@@ -65,7 +80,6 @@ module Puppet::ModuleTool
                 :installed_version => mod.version
             end
           end
-
 
           Puppet::Forge::Cache.clean
 
@@ -203,7 +217,7 @@ module Puppet::ModuleTool
       end
 
       def installed_modules_source
-        @installed ||= Puppet::ModuleTool::InstalledModules.new
+        @installed ||= Puppet::ModuleTool::InstalledModules.new(@environment)
       end
 
       def installed_modules

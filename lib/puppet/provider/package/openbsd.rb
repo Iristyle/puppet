@@ -35,9 +35,11 @@ Puppet::Type.type(:package).provide :openbsd, :parent => Puppet::Provider::Packa
             packages << new(hash)
             hash = {}
           else
-            # Print a warning on lines we can't match, but move
-            # on, since it should be non-fatal
-            warning("Failed to match line #{line}")
+            unless line =~ /Updating the pkgdb/
+              # Print a warning on lines we can't match, but move
+              # on, since it should be non-fatal
+              warning("Failed to match line #{line}")
+            end
           end
         }
       end
@@ -54,7 +56,7 @@ Puppet::Type.type(:package).provide :openbsd, :parent => Puppet::Provider::Packa
 
   def parse_pkgconf
     unless @resource[:source]
-      if Puppet::FileSystem::File.exist?("/etc/pkg.conf")
+      if Puppet::FileSystem.exist?("/etc/pkg.conf")
         File.open("/etc/pkg.conf", "rb").readlines.each do |line|
           if matchdata = line.match(/^installpath\s*=\s*(.+)\s*$/i)
             @resource[:source] = matchdata[1]
@@ -137,30 +139,6 @@ Puppet::Type.type(:package).provide :openbsd, :parent => Puppet::Provider::Packa
 
   def uninstall_options
     join_options(resource[:uninstall_options])
-  end
-
-  # Turns a array of options into flags to be passed to pkg_add(8) and
-  # pkg_delete(8). The options can be passed as a string or hash. Note
-  # that passing a hash should only be used in case -Dfoo=bar must be passed,
-  # which can be accomplished with:
-  #     install_options => [ { '-Dfoo' => 'bar' } ]
-  # Regular flags like '-L' must be passed as a string.
-  # @param options [Array]
-  # @return Concatenated list of options
-  # @api private
-  def join_options(options)
-    return unless options
-
-    options.collect do |val|
-      case val
-      when Hash
-        val.keys.sort.collect do |k|
-          "#{k}=#{val[k]}"
-        end.join(' ')
-      else
-        val
-      end
-    end
   end
 
   def uninstall

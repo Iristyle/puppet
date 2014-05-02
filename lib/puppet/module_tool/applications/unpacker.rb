@@ -1,5 +1,6 @@
 require 'pathname'
 require 'tmpdir'
+require 'json'
 
 module Puppet::ModuleTool
   module Applications
@@ -7,7 +8,6 @@ module Puppet::ModuleTool
       def self.unpack(filename, target)
         app = self.new(filename, :target_dir => target)
         app.unpack
-        app.root_dir
         app.move_into(target)
       end
 
@@ -39,7 +39,7 @@ module Puppet::ModuleTool
       # @api private
       def unpack
         begin
-          Puppet::ModuleTool::Tar.instance.unpack(@filename.to_s, tmpdir.to_s, [@module_path.stat.uid, @module_path.stat.gid].join(':'))
+          Puppet::ModuleTool::Tar.instance.unpack(@filename.to_s, tmpdir, [@module_path.stat.uid, @module_path.stat.gid].join(':'))
         rescue Puppet::ExecutionFailure => e
           raise RuntimeError, "Could not extract contents of module archive: #{e.message}"
         end
@@ -61,7 +61,7 @@ module Puppet::ModuleTool
 
       # @api private
       def module_name
-        metadata = PSON.parse((root_dir + 'metadata.json').read)
+        metadata = JSON.parse((root_dir + 'metadata.json').read)
         name = metadata['name'][/-(.*)/, 1]
       end
 
@@ -71,16 +71,15 @@ module Puppet::ModuleTool
         dir.rmtree if dir.exist?
         FileUtils.mv(root_dir, dir)
       ensure
-        tmpdir.rmtree
+        FileUtils.rmtree(tmpdir)
       end
 
       # Obtain a suitable temporary path for unpacking tarballs
       #
       # @api private
-      # @return [Pathname] path to temporary unpacking location
+      # @return [String] path to temporary unpacking location
       def tmpdir
         @dir ||= Dir.mktmpdir('tmp-unpacker', Puppet::Forge::Cache.base_path)
-        Pathname.new(@dir)
       end
     end
   end

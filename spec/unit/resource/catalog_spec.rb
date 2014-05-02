@@ -2,19 +2,10 @@
 require 'spec_helper'
 require 'puppet_spec/compiler'
 
-# the json-schema gem doesn't support windows
-if not Puppet.features.microsoft_windows?
-  CATALOG_SCHEMA = JSON.parse(File.read(File.join(File.dirname(__FILE__), '../../../api/schemas/catalog.json')))
-
-  describe "catalog schema" do
-    it "should validate against the json meta-schema" do
-      JSON::Validator.validate!(JSON_META_SCHEMA, CATALOG_SCHEMA)
-    end
-  end
-
-end
+require 'matchers/json'
 
 describe Puppet::Resource::Catalog, "when compiling" do
+  include JSONMatchers
   include PuppetSpec::Files
 
   before do
@@ -736,43 +727,40 @@ describe Puppet::Resource::Catalog, "when compiling" do
 end
 
 describe Puppet::Resource::Catalog, "when converting a resource catalog to pson" do
+  include JSONMatchers
   include PuppetSpec::Compiler
 
-  def validate_json_for_catalog(catalog)
-    JSON::Validator.validate!(CATALOG_SCHEMA, catalog.to_pson)
-  end
-
-  it "should validate an empty catalog against the schema", :unless => Puppet.features.microsoft_windows? do
+  it "should validate an empty catalog against the schema" do
     empty_catalog = compile_to_catalog("")
-    validate_json_for_catalog(empty_catalog)
+    expect(empty_catalog.to_pson).to validate_against('api/schemas/catalog.json')
   end
 
-  it "should validate a noop catalog against the schema", :unless => Puppet.features.microsoft_windows? do
+  it "should validate a noop catalog against the schema" do
     noop_catalog = compile_to_catalog("create_resources('file', {})")
-    validate_json_for_catalog(noop_catalog)
+    expect(noop_catalog.to_pson).to validate_against('api/schemas/catalog.json')
   end
 
-  it "should validate a single resource catalog against the schema", :unless => Puppet.features.microsoft_windows? do
+  it "should validate a single resource catalog against the schema" do
     catalog = compile_to_catalog("create_resources('file', {'/etc/foo'=>{'ensure'=>'present'}})")
-    validate_json_for_catalog(catalog)
+    expect(catalog.to_pson).to validate_against('api/schemas/catalog.json')
   end
 
-  it "should validate a virtual resource catalog against the schema", :unless => Puppet.features.microsoft_windows? do
+  it "should validate a virtual resource catalog against the schema" do
     catalog = compile_to_catalog("create_resources('@file', {'/etc/foo'=>{'ensure'=>'present'}})\nrealize(File['/etc/foo'])")
-    validate_json_for_catalog(catalog)
+    expect(catalog.to_pson).to validate_against('api/schemas/catalog.json')
   end
 
-  it "should validate a single exported resource catalog against the schema", :unless => Puppet.features.microsoft_windows? do
+  it "should validate a single exported resource catalog against the schema" do
     catalog = compile_to_catalog("create_resources('@@file', {'/etc/foo'=>{'ensure'=>'present'}})")
-    validate_json_for_catalog(catalog)
+    expect(catalog.to_pson).to validate_against('api/schemas/catalog.json')
   end
 
-  it "should validate a two resource catalog against the schema", :unless => Puppet.features.microsoft_windows? do
+  it "should validate a two resource catalog against the schema" do
     catalog = compile_to_catalog("create_resources('notify', {'foo'=>{'message'=>'one'}, 'bar'=>{'message'=>'two'}})")
-    validate_json_for_catalog(catalog)
+    expect(catalog.to_pson).to validate_against('api/schemas/catalog.json')
   end
 
-  it "should validate a two parameter class catalog against the schema", :unless => Puppet.features.microsoft_windows? do
+  it "should validate a two parameter class catalog against the schema" do
     catalog = compile_to_catalog(<<-MANIFEST)
       class multi_param_class ($one, $two) {
         notify {'foo':
@@ -785,7 +773,7 @@ describe Puppet::Resource::Catalog, "when converting a resource catalog to pson"
         two => 'world',
       }
     MANIFEST
-    validate_json_for_catalog(catalog)
+    expect(catalog.to_pson).to validate_against('api/schemas/catalog.json')
   end
 end
 
@@ -848,10 +836,6 @@ describe Puppet::Resource::Catalog, "when converting to pson" do
 end
 
 describe Puppet::Resource::Catalog, "when converting from pson" do
-  def pson_result_should
-    Puppet::Resource::Catalog.expects(:new).with { |hash| yield hash }
-  end
-
   before do
     @data = {
       'name' => "myhost"
@@ -861,125 +845,45 @@ describe Puppet::Resource::Catalog, "when converting from pson" do
       'data' => @data,
       'metadata' => {}
     }
-
-    @catalog = Puppet::Resource::Catalog.new("myhost")
-    Puppet::Resource::Catalog.stubs(:new).returns @catalog
-  end
-
-  it "should be extended with the PSON utility module" do
-    Puppet::Resource::Catalog.singleton_class.ancestors.should be_include(Puppet::Util::Pson)
   end
 
   it "should create it with the provided name" do
-    Puppet::Resource::Catalog.expects(:new).with('myhost').returns @catalog
-    PSON.parse @pson.to_pson
-  end
-
-  it "should set the provided version on the catalog if one is set" do
     @data['version'] = 50
-    PSON.parse @pson.to_pson
-    @catalog.version.should == @data['version']
-  end
-
-  it "should set any provided tags on the catalog" do
     @data['tags'] = %w{one two}
-    PSON.parse @pson.to_pson
-    @catalog.should be_tagged("one")
-    @catalog.should be_tagged("two")
-  end
-
-  it "should set any provided classes on the catalog" do
     @data['classes'] = %w{one two}
-    PSON.parse @pson.to_pson
-    @catalog.classes.should == @data['classes']
-  end
+    @data['edges'] = [Puppet::Relationship.new("File[/foo]", "File[/bar]",
+                                               :event => "one",
+                                               :callback => "refresh").to_data_hash]
+    @data['resources'] = [Puppet::Resource.new(:file, "/foo").to_data_hash,
+                          Puppet::Resource.new(:file, "/bar").to_data_hash]
 
-  it 'should convert the resources list into resources and add each of them' do
-    @data['resources'] = [Puppet::Resource.new(:file, "/foo"), Puppet::Resource.new(:file, "/bar")]
 
     catalog = PSON.parse @pson.to_pson
 
-    catalog.resources.collect(&:ref) == ["File[/foo]", "File[/bar]"]
-  end
+    expect(catalog.name).to eq('myhost')
+    expect(catalog.version).to eq(@data['version'])
+    expect(catalog).to be_tagged("one")
+    expect(catalog).to be_tagged("two")
 
-  it 'should convert resources even if they do not include "type" information' do
-    @data['resources'] = [Puppet::Resource.new(:file, "/foo")]
+    expect(catalog.classes).to eq(@data['classes'])
+    expect(catalog.resources.collect(&:ref)).to eq(["File[/foo]", "File[/bar]"])
 
-    @data['resources'][0].expects(:to_pson).returns '{"title":"/foo","tags":["file"],"type":"File"}'
-
-    @catalog.expects(:add_resource).with { |res| res.type == "File" }
-
-    PSON.parse @pson.to_pson
-  end
-
-  it 'should convert the edges list into edges and add each of them' do
-    one = Puppet::Relationship.new("osource", "otarget", :event => "one", :callback => "refresh")
-    two = Puppet::Relationship.new("tsource", "ttarget", :event => "two", :callback => "refresh")
-
-    @data['edges'] = [one, two]
-
-    @catalog.stubs(:resource).returns("eh")
-
-    @catalog.expects(:add_edge).with { |edge| edge.event == "one" }
-    @catalog.expects(:add_edge).with { |edge| edge.event == "two" }
-
-    PSON.parse @pson.to_pson
-  end
-
-  it "should be able to convert relationships that do not include 'type' information" do
-    one = Puppet::Relationship.new("osource", "otarget", :event => "one", :callback => "refresh")
-    one.expects(:to_pson).returns "{\"event\":\"one\",\"callback\":\"refresh\",\"source\":\"osource\",\"target\":\"otarget\"}"
-
-    @data['edges'] = [one]
-
-    @catalog.stubs(:resource).returns("eh")
-
-    @catalog.expects(:add_edge).with { |edge| edge.event == "one" }
-
-    PSON.parse @pson.to_pson
-  end
-
-  it "should set the source and target for each edge to the actual resource" do
-    edge = Puppet::Relationship.new("source", "target")
-
-    @data['edges'] = [edge]
-
-    @catalog.expects(:resource).with("source").returns("source_resource")
-    @catalog.expects(:resource).with("target").returns("target_resource")
-
-    @catalog.expects(:add_edge).with { |edge| edge.source == "source_resource" and edge.target == "target_resource" }
-
-    PSON.parse @pson.to_pson
+    expect(catalog.edges.collect(&:event)).to eq(["one"])
+    expect(catalog.edges[0].source).to eq(catalog.resource(:file, "/foo"))
+    expect(catalog.edges[0].target).to eq(catalog.resource(:file, "/bar"))
   end
 
   it "should fail if the source resource cannot be found" do
-    edge = Puppet::Relationship.new("source", "target")
+    @data['edges'] = [Puppet::Relationship.new("File[/missing]", "File[/bar]").to_data_hash]
+    @data['resources'] = [Puppet::Resource.new(:file, "/bar").to_data_hash]
 
-    @data['edges'] = [edge]
-
-    @catalog.expects(:resource).with("source").returns(nil)
-    @catalog.stubs(:resource).with("target").returns("target_resource")
-
-    lambda { PSON.parse @pson.to_pson }.should raise_error(ArgumentError)
+    expect { PSON.parse @pson.to_pson }.to raise_error(ArgumentError, /Could not find relationship source/)
   end
 
   it "should fail if the target resource cannot be found" do
-    edge = Puppet::Relationship.new("source", "target")
+    @data['edges'] = [Puppet::Relationship.new("File[/bar]", "File[/missing]").to_data_hash]
+    @data['resources'] = [Puppet::Resource.new(:file, "/bar").to_data_hash]
 
-    @data['edges'] = [edge]
-
-    @catalog.stubs(:resource).with("source").returns("source_resource")
-    @catalog.expects(:resource).with("target").returns(nil)
-
-    lambda { PSON.parse @pson.to_pson }.should raise_error(ArgumentError)
-  end
-
-  describe "#title_key_for_ref" do
-    it "should parse a resource ref string into a pair" do
-      @catalog.title_key_for_ref("Title[name]").should == ["Title", "name"]
-    end
-    it "should parse a resource ref string into a pair, even if there's a newline inside the name" do
-      @catalog.title_key_for_ref("Title[na\nme]").should == ["Title", "na\nme"]
-    end
+    expect { PSON.parse @pson.to_pson }.to raise_error(ArgumentError, /Could not find relationship target/)
   end
 end

@@ -171,9 +171,9 @@ HELP
     exit_code = 0
     files = []
     unless @manifest
-      env = Puppet::Node::Environment.new
+      env = Puppet.lookup(:environments).get(Puppet[:environment])
       files += env.modulepath
-      files << ::File.dirname(env[:manifest])
+      files << ::File.dirname(env.manifest)
     end
     files += command_line.args
     Puppet.info "scanning: #{files.inspect}"

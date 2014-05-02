@@ -57,7 +57,7 @@ class Puppet::Forge
         "User-Agent" => user_agent,
       }
 
-      if Puppet.features.zlib? && Puppet[:zlib]
+      if Puppet.features.zlib? && Puppet[:zlib] && RUBY_VERSION >= "1.9"
         headers = headers.merge({
           "Accept-Encoding" => "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
         })
@@ -90,7 +90,7 @@ class Puppet::Forge
           if response && response.key?("content-encoding")
             case response["content-encoding"]
             when "gzip"
-              response.body = Zlib::GzipReader.new(StringIO.new(response.read_body), encoding: "ASCII-8BIT").read
+              response.body = Zlib::GzipReader.new(StringIO.new(response.read_body), :encoding => "ASCII-8BIT").read
               response.delete("content-encoding")
             when "deflate"
               response.body = Zlib::Inflate.inflate(response.read_body)

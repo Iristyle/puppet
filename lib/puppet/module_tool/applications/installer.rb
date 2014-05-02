@@ -21,23 +21,29 @@ module Puppet::ModuleTool
         super(options)
 
         @action              = :install
-        @environment         = Puppet::Node::Environment.new(Puppet.settings[:environment])
+        @environment         = options[:environment_instance]
         @ignore_dependencies = forced? || options[:ignore_dependencies]
         @name                = name
         @install_dir         = install_dir
 
         Puppet::Forge::Cache.clean
 
-        @local_tarball = File.exist?(name)
+        @local_tarball = Puppet::FileSystem.exist?(name)
 
         if @local_tarball
-          Semantic::Dependency.add_source(local_tarball_source)
           release = local_tarball_source.release
           @name = release.name
           options[:version] = release.version.to_s
-        end
+          Semantic::Dependency.add_source(local_tarball_source)
 
-        unless @local_tarball && @ignore_dependencies
+          # If we're operating on a local tarball and ignoring dependencies, we
+          # don't need to search any additional sources.  This will cut down on
+          # unnecessary network traffic.
+          unless @ignore_dependencies
+            Semantic::Dependency.add_source(installed_modules_source)
+            Semantic::Dependency.add_source(module_repository)
+          end
+        else
           Semantic::Dependency.add_source(installed_modules_source) unless forced?
           Semantic::Dependency.add_source(module_repository)
         end
@@ -45,7 +51,7 @@ module Puppet::ModuleTool
 
       def run
         name = @name.tr('/', '-')
-        version = options[:version] || '>= 0'
+        version = options[:version] || '>= 0.0.0'
 
         results = { :action => :install, :module_name => name, :module_version => version }
 
@@ -54,13 +60,15 @@ module Puppet::ModuleTool
             unless forced?
               if Semantic::VersionRange.parse(version).include? mod.version
                 results[:result] = :noop
+                results[:version] = mod.version
                 return results
               else
+                changes = Checksummer.run(installed_modules[name].mod.path) rescue []
                 raise AlreadyInstalledError,
                   :module_name       => name,
                   :installed_version => installed_modules[name].version,
                   :requested_version => options[:version] || :latest,
-                  :local_changes     => installed_modules[name].mod.local_changes
+                  :local_changes     => changes
               end
             end
           end
@@ -196,7 +204,7 @@ module Puppet::ModuleTool
       end
 
       def installed_modules_source
-        @installed ||= Puppet::ModuleTool::InstalledModules.new
+        @installed ||= Puppet::ModuleTool::InstalledModules.new(@environment)
       end
 
       def installed_modules
@@ -245,12 +253,11 @@ module Puppet::ModuleTool
         get_local_constraints
 
         if !forced? && @installed.include?(@module_name)
-
           raise AlreadyInstalledError,
             :module_name       => @module_name,
             :installed_version => @installed[@module_name].first.version,
             :requested_version => @version || (@conditions[@module_name].empty? ? :latest : :best),
-            :local_changes     => @installed[@module_name].first.local_changes
+            :local_changes     => Puppet::ModuleTool::Applications::Checksummer.run(@installed[@module_name].first.path)
         end
 
         if @ignore_dependencies && @source == :filesystem
@@ -294,6 +301,8 @@ module Puppet::ModuleTool
       # install into the same directory 'foo'.
       #
       def resolve_install_conflicts(graph, is_dependency = false)
+        Puppet.debug("Resolving conflicts for #{graph.map {|n| n[:module]}.join(',')}")
+
         graph.each do |release|
           @environment.modules_by_path[options[:target_dir]].each do |mod|
             if mod.has_metadata?
@@ -324,8 +333,11 @@ module Puppet::ModuleTool
                 :directory         => mod.path,
                 :metadata          => metadata
             end
+          end
 
-            resolve_install_conflicts(release[:dependencies], true)
+          deps = release[:dependencies]
+          if deps && !deps.empty?
+            resolve_install_conflicts(deps, true)
           end
         end
       end
