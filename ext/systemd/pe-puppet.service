@@ -4,7 +4,8 @@ After=network.target pe-httpd.service
 
 [Service]
 Type=simple
-ExecStart=/opt/puppet/bin/puppet agent --no-daemonize
+EnvironmentFile=-/etc/sysconfig/pe-puppet
+ExecStart=/opt/puppet/bin/puppet agent ${PUPPET_EXTRA_OPTS} --no-daemonize
 
 [Install]
 WantedBy=multi-user.target
