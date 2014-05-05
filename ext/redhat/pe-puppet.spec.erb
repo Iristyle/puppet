@@ -118,6 +118,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-%(id -un)
 BuildArch:      noarch
 
 BuildRequires:  %{?name_prefix}facter >= %{facter_version}
+BuildRequires:  %{?name_prefix}hiera
 BuildRequires:  %{?name_prefix}ruby
 
 # coreutils & sed needed for AIX builds explicitly, but we don't build shadow
