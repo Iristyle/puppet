@@ -3,10 +3,8 @@ Description=Puppet Enterprise Puppet agent
 After=network.target pe-httpd.service
 
 [Service]
-Type=forking
-PIDFile=/var/run/pe-puppet/agent.pid
-ExecStart=/opt/puppet/bin/puppet agent
-ExecReload=/bin/kill -HUP $MAINPID
+Type=simple
+ExecStart=/opt/puppet/bin/puppet agent --no-daemonize
 
 [Install]
 WantedBy=multi-user.target
