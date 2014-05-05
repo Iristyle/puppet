@@ -1,6 +1,6 @@
 [Unit]
 Description=Puppet Enterprise Puppet agent
-After=network.target
+After=network.target pe-httpd.service
 
 [Service]
 Type=forking
