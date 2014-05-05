@@ -1,7 +1,6 @@
 [Unit]
 Description=Puppet Enterprise Puppet agent
-Wants=basic.target
-After=basic.target network.target
+After=network.target
 
 [Service]
 Type=forking
