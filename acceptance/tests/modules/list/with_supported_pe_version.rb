@@ -25,6 +25,5 @@ end
 step "list module" do
   on(master, puppet("module list")) do |res|
     assert_match(/#{module_author}-#{module_name}/, res.stdout)
-    assert_equal('', res.stderr)
   end
 end
