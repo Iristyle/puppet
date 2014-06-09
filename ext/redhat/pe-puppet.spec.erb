@@ -455,7 +455,7 @@ mkitab %{name}:2:once:startsrc -s %{name} > /dev/null 2>&1 || :
 if [ "${1}" = 1 ]; then
   /opt/puppet/bin/puppet config --confdir %{_sysconfdir}/puppet set user %{puppetuser}
   /opt/puppet/bin/puppet config --confdir %{_sysconfdir}/puppet set group %{puppetuser}
-  /opt/puppet/bin/puppet config --confdir %{_sysconfdir}/puppet set modulepath '%{_sysconfdir}/puppet/modules:/opt/puppet/share/puppet/modules'
+  /opt/puppet/bin/puppet config --confdir %{_sysconfdir}/puppet set basemodulepath '%{_sysconfdir}/puppet/modules:/opt/puppet/share/puppet/modules'
 fi
 /usr/bin/chkagent --add %{name} || :
 /sbin/service ProcMgr reload || :
