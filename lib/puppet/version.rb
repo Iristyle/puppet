@@ -14,12 +14,12 @@ module Puppet
 
   if File.readable? PEBuildFile and !File.zero? PEBuildFile
     PEVERSION = File.new(PEBuildFile).gets.chomp
-    PUPPETVERSION = "3.6.1 (Puppet Enterprise #{PEVERSION})"
+    PUPPETVERSION = "3.6.2 (Puppet Enterprise #{PEVERSION})"
   elsif File.readable? PEVersionFile and !File.zero? PEVersionFile
     PEVERSION = File.new(PEVersionFile).gets.chomp
-    PUPPETVERSION = "3.6.1 (Puppet Enterprise #{PEVERSION})"
+    PUPPETVERSION = "3.6.2 (Puppet Enterprise #{PEVERSION})"
   else
-    PUPPETVERSION = '3.6.1'
+    PUPPETVERSION = '3.6.2'
   end
 
   ##
