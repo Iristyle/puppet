@@ -17,7 +17,7 @@ describe provider_class do
   def expect_pkgadd_with_source(source)
     provider.expects(:pkgadd).with do |fullname|
       ENV.should_not be_key('PKG_PATH')
-      fullname.should == source
+      fullname.should == [source]
     end
   end
 
@@ -28,13 +28,21 @@ describe provider_class do
       ENV.should be_key('PKG_PATH')
       ENV['PKG_PATH'].should == source
 
-      fullname.should == provider.resource[:name]
+      fullname.should == [provider.resource[:name]]
     end
     provider.expects(:execpipe).with(['/bin/pkg_info', '-I', provider.resource[:name]]).yields('')
 
     yield
 
     ENV.should_not be_key('PKG_PATH')
+  end
+
+  describe 'provider features' do
+    it { should be_installable }
+    it { should be_uninstallable }
+    it { should be_install_options }
+    it { should be_uninstall_options }
+    it { should be_versionable }
   end
 
   before :each do
@@ -45,7 +53,7 @@ describe provider_class do
     provider_class.stubs(:command).with(:pkgdelete).returns('/bin/pkg_delete')
   end
 
-  context "::instances" do
+  context "#instances" do
     it "should return nil if execution failed" do
       provider_class.expects(:execpipe).raises(Puppet::ExecutionFailure, 'wawawa')
       provider_class.instances.should be_nil
@@ -224,6 +232,46 @@ describe provider_class do
         }.to raise_error(Puppet::Error, /No valid installpath found in \/etc\/pkg\.conf and no source was set/)
       end
     end
+
+    it 'should use install_options as Array' do
+      provider.resource[:source] = '/tma1/'
+      provider.resource[:install_options] = ['-r', '-z']
+      provider.expects(:pkgadd).with(['-r', '-z', 'bash'])
+      provider.install
+    end
+  end
+
+  context "#latest"  do
+    before do
+      provider.resource[:source] = '/tmp/tcsh.tgz'
+      provider.resource[:name] = 'tcsh'
+      provider.stubs(:pkginfo).with('tcsh')
+    end
+
+    it "should return the ensure value if the package is already installed" do
+      provider.stubs(:properties).returns({:ensure => '4.2.45'})
+      provider.stubs(:pkginfo).with('-Q', 'tcsh')
+      provider.latest.should == '4.2.45'
+    end
+
+    it "should recognize a new version" do
+      pkginfo_query = 'tcsh-6.18.01p1'
+      provider.stubs(:pkginfo).with('-Q', 'tcsh').returns(pkginfo_query)
+      provider.latest.should == '6.18.01p1'
+    end
+
+    it "should recognize a newer version" do
+      provider.stubs(:properties).returns({:ensure => '1.6.8'})
+      pkginfo_query = 'tcsh-1.6.10'
+      provider.stubs(:pkginfo).with('-Q', 'tcsh').returns(pkginfo_query)
+      provider.latest.should == '1.6.10'
+    end
+
+    it "should recognize a package that is already the newest" do
+      pkginfo_query = 'tcsh-6.18.01p0 (installed)'
+      provider.stubs(:pkginfo).with('-Q', 'tcsh').returns(pkginfo_query)
+      provider.latest.should == '6.18.01p0'
+    end
   end
 
   context "#get_version" do
@@ -233,8 +281,8 @@ describe provider_class do
     end
 
     it "should return the package version if in the output" do
-      fixture = File.read(my_fixture('pkginfo.list'))
-      provider.expects(:execpipe).with(%w{/bin/pkg_info -I bash}).yields(fixture)
+      output = 'bash-3.1.17         GNU Bourne Again Shell'
+      provider.expects(:execpipe).with(%w{/bin/pkg_info -I bash}).yields(output)
       provider.get_version.should == '3.1.17'
     end
 
@@ -279,7 +327,7 @@ describe provider_class do
       provider.install_options.should == ['-Darch=vax']
     end
   end
-  
+
   context "#uninstall_options" do
     it "should return nill by default" do
       provider.uninstall_options.should be_nil
@@ -300,12 +348,20 @@ describe provider_class do
       provider.uninstall_options.should == ['-Dbaddepend=1']
     end
   end
-  
+
   context "#uninstall" do
     describe 'when uninstalling' do
       it 'should use erase to purge' do
         provider.expects(:pkgdelete).with('-c', '-q', 'bash')
         provider.purge
+      end
+    end
+
+    describe 'with uninstall_options' do
+      it 'should use uninstall_options as Array' do
+        provider.resource[:uninstall_options] = ['-q', '-c']
+        provider.expects(:pkgdelete).with(['-q', '-c'], 'bash')
+        provider.uninstall
       end
     end
   end

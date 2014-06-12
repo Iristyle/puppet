@@ -87,6 +87,7 @@ module Puppet::Util::Windows::Security
   include Puppet::Util::Windows::SID
 
   extend Puppet::Util::Windows::Security
+  extend FFI::Library
 
   # file modes
   S_IRUSR = 0000400
@@ -390,9 +391,11 @@ module Puppet::Util::Windows::Security
     inherit ||= NO_INHERITANCE
 
     string_to_sid_ptr(sid) do |sid_ptr|
-      raise Puppet::Util::Windows::Error.new("Invalid SID") unless IsValidSid(sid_ptr)
+      if Puppet::Util::Windows::SID.IsValidSid(sid_ptr) == FFI::WIN32_FALSE
+        raise Puppet::Util::Windows::Error.new("Invalid SID")
+      end
 
-      unless AddAccessAllowedAceEx(acl, ACL_REVISION, inherit, mask, sid_ptr)
+      unless AddAccessAllowedAceEx(acl, ACL_REVISION, inherit, mask, sid_ptr.address)
         raise Puppet::Util::Windows::Error.new("Failed to add access control entry")
       end
     end
@@ -402,9 +405,11 @@ module Puppet::Util::Windows::Security
     inherit ||= NO_INHERITANCE
 
     string_to_sid_ptr(sid) do |sid_ptr|
-      raise Puppet::Util::Windows::Error.new("Invalid SID") unless IsValidSid(sid_ptr)
+      if Puppet::Util::Windows::SID.IsValidSid(sid_ptr) == FFI::WIN32_FALSE
+        raise Puppet::Util::Windows::Error.new("Invalid SID")
+      end
 
-      unless AddAccessDeniedAceEx(acl, ACL_REVISION, inherit, mask, sid_ptr)
+      unless AddAccessDeniedAceEx(acl, ACL_REVISION, inherit, mask, sid_ptr.address)
         raise Puppet::Util::Windows::Error.new("Failed to add access control entry")
       end
     end
@@ -457,13 +462,18 @@ module Puppet::Util::Windows::Security
 
       case ace_type
       when ACCESS_ALLOWED_ACE_TYPE
-        sid_ptr = ace_ptr.unpack('L')[0] + 8 # address of ace_ptr->SidStart
-        raise Puppet::Util::Windows::Error.new("Failed to read DACL, invalid SID") unless IsValidSid(sid_ptr)
+
+        sid_ptr = FFI::Pointer.new(:pointer, ace_ptr.unpack('L')[0] + 8) # address of ace_ptr->SidStart
+        if Puppet::Util::Windows::SID.IsValidSid(sid_ptr) == FFI::WIN32_FALSE
+          raise Puppet::Util::Windows::Error.new("Failed to read DACL, invalid SID")
+        end
         sid = sid_ptr_to_string(sid_ptr)
         dacl.allow(sid, mask, ace_flags)
       when ACCESS_DENIED_ACE_TYPE
-        sid_ptr = ace_ptr.unpack('L')[0] + 8 # address of ace_ptr->SidStart
-        raise Puppet::Util::Windows::Error.new("Failed to read DACL, invalid SID") unless IsValidSid(sid_ptr)
+        sid_ptr = FFI::Pointer.new(:pointer, ace_ptr.unpack('L')[0] + 8) # address of ace_ptr->SidStart
+        if Puppet::Util::Windows::SID.IsValidSid(sid_ptr) == FFI::WIN32_FALSE
+          raise Puppet::Util::Windows::Error.new("Failed to read DACL, invalid SID")
+        end
         sid = sid_ptr_to_string(sid_ptr)
         dacl.deny(sid, mask, ace_flags)
       else
@@ -561,14 +571,14 @@ module Puppet::Util::Windows::Security
         raise Puppet::Util::Windows::Error.new("Failed to get security information") unless rv == ERROR_SUCCESS
 
         begin
-          owner = sid_ptr_to_string(owner_sid.unpack('L')[0])
-          group = sid_ptr_to_string(group_sid.unpack('L')[0])
+          owner = sid_ptr_to_string(FFI::Pointer.new(:pointer, owner_sid.unpack('L')[0]))
+          group = sid_ptr_to_string(FFI::Pointer.new(:pointer, group_sid.unpack('L')[0]))
 
-          control = FFI::MemoryPointer.new(:uint16, 1)
-          revision = FFI::MemoryPointer.new(:uint32, 1)
-          ffsd = FFI::Pointer.new(ppsd.unpack('L')[0])
+          control = FFI::MemoryPointer.new(:word, 1)
+          revision = FFI::MemoryPointer.new(:dword, 1)
+          ffsd = FFI::Pointer.new(:pointer, ppsd.unpack('L')[0])
 
-          if ! API.get_security_descriptor_control(ffsd, control, revision)
+          if GetSecurityDescriptorControl(ffsd, control, revision) == FFI::WIN32_FALSE
             raise Puppet::Util::Windows::Error.new("Failed to get security descriptor control")
           end
 
@@ -622,8 +632,8 @@ module Puppet::Util::Windows::Security
               rv = SetSecurityInfo(handle,
                                    SE_FILE_OBJECT,
                                    flags,
-                                   ownersid,
-                                   groupsid,
+                                   ownersid.address,
+                                   groupsid.address,
                                    acl,
                                    nil)
               raise Puppet::Util::Windows::Error.new("Failed to set security information") unless rv == ERROR_SUCCESS
@@ -634,18 +644,18 @@ module Puppet::Util::Windows::Security
     end
   end
 
-  module API
-    extend FFI::Library
-    ffi_lib 'kernel32'
-    ffi_convention :stdcall
+  ffi_convention :stdcall
 
-    # typedef WORD SECURITY_DESCRIPTOR_CONTROL, *PSECURITY_DESCRIPTOR_CONTROL;
-    # BOOL WINAPI GetSecurityDescriptorControl(
-    #   _In_   PSECURITY_DESCRIPTOR pSecurityDescriptor,
-    #   _Out_  PSECURITY_DESCRIPTOR_CONTROL pControl,
-    #   _Out_  LPDWORD lpdwRevision
-    # );
-    ffi_lib :advapi32
-    attach_function :get_security_descriptor_control, :GetSecurityDescriptorControl, [:pointer, :pointer, :pointer], :bool
-  end
+  # http://msdn.microsoft.com/en-us/library/windows/hardware/ff556610(v=vs.85).aspx
+  # http://msdn.microsoft.com/en-us/library/windows/desktop/aa379561(v=vs.85).aspx
+  # http://msdn.microsoft.com/en-us/library/windows/desktop/aa446647(v=vs.85).aspx
+  # typedef WORD SECURITY_DESCRIPTOR_CONTROL, *PSECURITY_DESCRIPTOR_CONTROL;
+  # BOOL WINAPI GetSecurityDescriptorControl(
+  #   _In_   PSECURITY_DESCRIPTOR pSecurityDescriptor,
+  #   _Out_  PSECURITY_DESCRIPTOR_CONTROL pControl,
+  #   _Out_  LPDWORD lpdwRevision
+  # );
+  ffi_lib :advapi32
+  attach_function_private :GetSecurityDescriptorControl,
+    [:pointer, :lpword, :lpdword], :win32_bool
 end
