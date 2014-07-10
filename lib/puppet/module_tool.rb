@@ -158,29 +158,6 @@ module Puppet
       end
     end
 
-    def self.has_pe_requirement?(metadata)
-      requirements = metadata['requirements'] || []
-      requirements.any? { |req| req['name'].upcase == 'PE' }
-    end
-
-    def self.meets_all_pe_requirements(metadata)
-      return true unless Puppet.enterprise?
-
-      requirements = metadata['requirements'] || []
-      pe_requirements = requirements.select { |req| req['name'].upcase == 'PE' }
-      pe_versions = pe_requirements.map { |req| req['version_requirement'] }
-
-      pe_versions.all? { |range| match_pe_range(range) }
-    end
-
-    def self.match_pe_range(range)
-      return false unless Puppet.enterprise?
-
-      version = Semantic::Version.parse(Puppet.pe_version)
-      range   = Semantic::VersionRange.parse(range)
-      range.include?(version)
-    end
-
     # Handles parsing of module dependency expressions into proper
     # {Semantic::VersionRange}s, including reasonable error handling.
     #

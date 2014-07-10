@@ -72,8 +72,7 @@ Puppet::Face.define(:module, '1.0.0') do
       modules_by_path = result[:modules_by_path]
 
       output = ''
-
-      warn_unmet_requirements(environment)
+      
       warn_unmet_dependencies(environment)
 
       environment.modulepath.each do |path|
@@ -101,26 +100,6 @@ Puppet::Face.define(:module, '1.0.0') do
       end
 
       output
-    end
-  end
-
-  def warn_unmet_requirements(environment)
-    environment.modules.sort_by {|mod| mod.name}.each do |mod|
-      if mod.has_metadata?
-        data = mod.metadata
-
-        unless Puppet::ModuleTool.meets_all_pe_requirements(data)
-          req = data['requirements'].detect do |x|
-            x['name'].upcase == 'PE' &&
-            !Puppet::ModuleTool.match_pe_range(x['version_requirement'])
-          end
-
-          msg = "'#{mod.name}' (v#{mod.version})"
-          msg << " requires Puppet Enterprise #{req['version_requirement']}"
-
-          Puppet.warning msg.chomp
-        end
-      end
     end
   end
 
