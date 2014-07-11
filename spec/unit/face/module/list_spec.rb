@@ -244,7 +244,7 @@ describe "puppet module list" do
         Puppet.stubs(:pe_version).returns('3.2.0')
       end
 
-      it "should warn when unsatisifed PE requirements are present" do
+      it "should NOT warn when unsatisifed PE requirements are present" do
         PuppetSpec::Modules.create('pe_dependable', @modpath1, :metadata => {
           :version => '0.0.5',
           :requirements => [{
@@ -253,29 +253,11 @@ describe "puppet module list" do
           }]
         })
 
-        Puppet.expects(:warning).with(regexp_matches(/'pe_dependable' \(v0\.0\.5\) requires Puppet Enterprise 2\.x/))
+        Puppet.expects(:warning).never
 
         Puppet::Face[:module, :current].list_when_rendering_console(
           Puppet::Face[:module, :current].list, {:tree => true}
         )
-      end
-
-      context "when multiple PE requirements are declared on a module" do
-        it "should warn about the first unsatisfied requirement" do
-          PuppetSpec::Modules.create('pe_dependable', @modpath1, :metadata => {
-            :version => '0.0.5',
-            :requirements => [
-              { "name" => "PE", "version_requirement" => "3.x" },
-              { "name" => "PE", "version_requirement" => "1.x" }
-            ]
-          })
-
-          Puppet.expects(:warning).with(regexp_matches(/'pe_dependable' \(v0\.0\.5\) requires Puppet Enterprise 1\.x/))
-
-          Puppet::Face[:module, :current].list_when_rendering_console(
-            Puppet::Face[:module, :current].list, {:tree => true}
-          )
-        end
       end
     end
 

@@ -94,10 +94,6 @@ module Puppet::ModuleTool
             add_module_name_constraints_to_graph(graph)
           end
 
-          unless ignore_requirements?
-            add_requirements_constraints_to_graph(graph)
-          end
-
           installed_modules.each do |mod, release|
             mod = mod.tr('/', '-')
             next if mod == name
@@ -211,9 +207,7 @@ module Puppet::ModuleTool
 
       private
       def module_repository
-        @repo ||= Puppet::Forge.new.tap do |repo|
-          repo.filter_pe_versions = !ignore_requirements?
-        end
+        @repo ||= Puppet::Forge.new
       end
 
       def installed_modules_source

@@ -379,8 +379,9 @@ describe Puppet::ModuleTool::Applications::Installer do
       context 'when the PE version does not match' do
         before { Puppet.stubs(:pe_version).returns('2.3.0') }
 
-        it 'fails to install' do
-          subject.should include :result => :failure
+        it 'installs an appropriate version' do
+          subject.should include :result => :success
+          graph_should_include 'pmtacceptance-pe_version', nil => v('2.0.0')
         end
 
         context 'using --ignore-requirements' do

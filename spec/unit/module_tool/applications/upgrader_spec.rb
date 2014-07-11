@@ -309,15 +309,16 @@ describe Puppet::ModuleTool::Applications::Upgrader do
 
         it 'installs an appropriate version' do
           subject.should include :result => :success
-          graph_should_include 'pmtacceptance-pe_version', v('1.0.0') => v('1.0.1')
+          graph_should_include 'pmtacceptance-pe_version', v('1.0.0') => v('2.0.0')
         end
       end
 
       context 'when the PE version does not match' do
         before { Puppet.stubs(:pe_version).returns('2.3.0') }
 
-        it 'fails to install' do
-          subject.should include :result => :failure
+        it 'installs appropriate version' do
+          subject.should include :result => :success
+          graph_should_include 'pmtacceptance-pe_version', v('1.0.0') => v('2.0.0')
         end
 
         context 'using --ignore-requirements' do
