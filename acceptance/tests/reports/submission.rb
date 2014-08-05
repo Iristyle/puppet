@@ -11,8 +11,13 @@ if master.is_pe?
       puppetdb_url = URI("http://localhost:8080/v3/reports")
       puppetdb_url.query = URI.escape(%Q{query=["=","certname","#{agent}"]})
       result = Net::HTTP.get(puppetdb_url)
-      json = JSON.load(result)
-      puts json.first["receive-time"]
+      begin
+        json = JSON.load(result)
+        puts json.first["receive-time"]
+      rescue JSON::ParserError => e
+        $stderr.puts "error JSON parsing results: " + result
+        raise e
+      end
     EOS
     puppetdb = hosts.detect { |h| h['roles'].include?('database') }
     on(puppetdb, "#{master[:puppetbindir]}/ruby -e '#{time_query_script}'").output.chomp
