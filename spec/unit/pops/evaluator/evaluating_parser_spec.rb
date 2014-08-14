@@ -17,18 +17,29 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
   before(:each) do
     Puppet[:strict_variables] = true
 
-    # These must be set since the is 3x logic that triggers on these even if the tests are explicit
-    # about selection of parser and evaluator
+    # These must be set since the 3x logic switches some behaviors on these even if the tests explicitly
+    # use the 4x parser and evaluator.
     #
     Puppet[:parser] = 'future'
-    Puppet[:evaluator] = 'future'
+
     # Puppetx cannot be loaded until the correct parser has been set (injector is turned off otherwise)
     require 'puppetx'
+
+    # Tests needs a known configuration of node/scope/compiler since it parses and evaluates
+    # snippets as the compiler will evaluate them, butwithout the overhead of compiling a complete
+    # catalog for each tested expression.
+    #
+    @parser  = Puppet::Pops::Parser::EvaluatingParser.new
+    @node = Puppet::Node.new('node.example.com')
+    @node.environment = Puppet::Node::Environment.create(:testing, [])
+    @compiler = Puppet::Parser::Compiler.new(@node)
+    @scope = Puppet::Parser::Scope.new(@compiler)
+    @scope.source = Puppet::Resource::Type.new(:node, 'node.example.com')
+    @scope.parent = @compiler.topscope
   end
 
-  let(:parser) {  Puppet::Pops::Parser::EvaluatingParser::Transitional.new }
-  let(:node) { 'node.example.com' }
-  let(:scope) { s = create_test_scope_for_node(node); s }
+  let(:parser) {  @parser }
+  let(:scope) { @scope }
   types = Puppet::Pops::Types::TypeFactory
 
   context "When evaluator evaluates literals" do
@@ -280,7 +291,20 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
     end
 
     {
-      'Object'  => ['Data', 'Scalar', 'Numeric', 'Integer', 'Float', 'Boolean', 'String', 'Pattern', 'Collection',
+      "if /(ana)/ in bananas {$1}" => 'ana',
+      "if /(xyz)/ in bananas {$1} else {$1}" => nil,
+      "$a = bananas =~ /(ana)/; $b = /(xyz)/ in bananas; $1" => 'ana',
+      "$a = xyz =~ /(xyz)/; $b = /(ana)/ in bananas; $1" => 'ana',
+      "if /p/ in [pineapple, bananas] {$0}" => 'p',
+      "if /b/ in [pineapple, bananas] {$0}" => 'b',
+    }.each do |source, result|
+      it "sets match variables for a regexp search using in such that '#{source}' produces '#{result}'" do
+          parser.evaluate_string(scope, source, __FILE__).should == result
+      end
+    end
+
+    {
+      'Any'  => ['Data', 'Scalar', 'Numeric', 'Integer', 'Float', 'Boolean', 'String', 'Pattern', 'Collection',
                     'Array', 'Hash', 'CatalogEntry', 'Resource', 'Class', 'Undef', 'File', 'NotYetKnownResourceType'],
 
       # Note, Data > Collection is false (so not included)
@@ -366,11 +390,21 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
     context "on strings requiring boxing to Numeric" do
       {
         "'2' + '2'"       => 4,
+        "'-2' + '2'"      => 0,
+        "'- 2' + '2'"     => 0,
+        '"-\t 2" + "2"'   => 0,
+        "'+2' + '2'"      => 4,
+        "'+ 2' + '2'"     => 4,
         "'2.2' + '2.2'"   => 4.4,
+        "'-2.2' + '2.2'"  => 0.0,
         "'0xF7' + '010'"  => 0xFF,
         "'0xF7' + '0x8'"  => 0xFF,
         "'0367' + '010'"  => 0xFF,
         "'012.3' + '010'" => 20.3,
+        "'-0x2' + '0x4'"  => 2,
+        "'+0x2' + '0x4'"  => 6,
+        "'-02' + '04'"    => 2,
+        "'+02' + '04'"    => 6,
       }.each do |source, result|
           it "should parse and evaluate the expression '#{source}' to #{result}" do
             parser.evaluate_string(scope, source, __FILE__).should == result
@@ -382,6 +416,10 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
         "'0xWTF' + '010'"  => :error,
         "'0x12.3' + '010'" => :error,
         "'0x12.3' + '010'" => :error,
+        '"-\n 2" + "2"'    => :error,
+        '"-\v 2" + "2"'    => :error,
+        '"-2\n" + "2"'     => :error,
+        '"-2\n " + "2"'    => :error,
       }.each do |source, result|
           it "should parse and raise error for '#{source}'" do
             expect { parser.evaluate_string(scope, source, __FILE__) }.to raise_error(Puppet::ParseError)
@@ -836,11 +874,6 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
   end
 
   context "When evaluator performs calls" do
-    around(:each) do |example|
-      Puppet.override(:loaders => Puppet::Pops::Loaders.new(Puppet::Node::Environment.create(:testing, []))) do
-        example.run
-      end
-    end
 
     let(:populate) do
       parser.evaluate_string(scope, "$a = 10 $b = [1,2,3]")
@@ -873,7 +906,7 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
     end
 
     it 'defaults can be given in a lambda and used only when arg is missing' do
-      env_loader = Puppet.lookup(:loaders).public_environment_loader
+      env_loader = @compiler.loaders.public_environment_loader
       fc = Puppet::Functions.create_function(:test) do
         dispatch :test do
           param 'Integer', 'count'
@@ -890,10 +923,10 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
     end
 
     it 'a given undef does not select the default value' do
-      env_loader = Puppet.lookup(:loaders).public_environment_loader
+      env_loader = @compiler.loaders.public_environment_loader
       fc = Puppet::Functions.create_function(:test) do
         dispatch :test do
-          param 'Object', 'lambda_arg'
+          param 'Any', 'lambda_arg'
           required_block_param
         end
         def test(lambda_arg, block)
@@ -904,6 +937,35 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
       env_loader.add_entry(:function, 'test', the_func, __FILE__)
 
       expect(parser.evaluate_string(scope, "test(undef) |$x=20| { $x == undef}")).to eql(true)
+    end
+
+    it 'a given undef is given as nil' do
+      env_loader = @compiler.loaders.public_environment_loader
+      fc = Puppet::Functions.create_function(:assert_no_undef) do
+        dispatch :assert_no_undef do
+          param 'Any', 'x'
+        end
+
+        def assert_no_undef(x)
+          case x
+          when Array
+            return unless x.include?(:undef)
+          when Hash
+            return unless x.keys.include?(:undef) || x.values.include?(:undef)
+          else
+            return unless x == :undef
+          end
+          raise "contains :undef"
+        end
+      end
+
+      the_func = fc.new({}, env_loader)
+      env_loader.add_entry(:function, 'assert_no_undef', the_func, __FILE__)
+
+      expect{parser.evaluate_string(scope, "assert_no_undef(undef)")}.to_not raise_error()
+      expect{parser.evaluate_string(scope, "assert_no_undef([undef])")}.to_not raise_error()
+      expect{parser.evaluate_string(scope, "assert_no_undef({undef => 1})")}.to_not raise_error()
+      expect{parser.evaluate_string(scope, "assert_no_undef({1 => undef})")}.to_not raise_error()
     end
   end
 
@@ -1117,12 +1179,6 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
 
   end
   context "Handles Deprecations and Discontinuations" do
-    around(:each) do |example|
-      Puppet.override({:loaders => Puppet::Pops::Loaders.new(Puppet::Node::Environment.create(:testing, []))}, 'test') do
-        example.run
-      end
-    end
-
     it 'of import statements' do
       source = "\nimport foo"
       # Error references position 5 at the opening '{'
@@ -1136,7 +1192,8 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
       source = '1+1 { "title": }'
       # Error references position 5 at the opening '{'
       # Set file to nil to make it easier to match with line number (no file name in output)
-      expect { parser.parse_string(source, nil) }.to raise_error(/Expression is not valid as a resource.*line 1:5/)
+      expect { parser.evaluate_string(scope, source) }.to raise_error(
+        /Illegal Resource Type expression, expected result to be a type name, or untitled Resource.*line 1:2/)
     end
 
     it 'for non r-value producing <| |>' do
@@ -1190,6 +1247,39 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
       }.to raise_error(/An interpolated expression is not allowed in a hostname of a node at line 2:23/)
     end
 
+  end
+
+  context 'does not leak variables' do
+    it 'local variables are gone when lambda ends' do
+      source = <<-SOURCE
+      [1,2,3].each |$x| { $y = $x}
+      $a = $y
+      SOURCE
+      expect do
+        parser.evaluate_string(scope, source)
+      end.to raise_error(/Unknown variable: 'y'/)
+    end
+
+    it 'lambda parameters are gone when lambda ends' do
+      source = <<-SOURCE
+      [1,2,3].each |$x| { $y = $x}
+      $a = $x
+      SOURCE
+      expect do
+        parser.evaluate_string(scope, source)
+      end.to raise_error(/Unknown variable: 'x'/)
+    end
+
+    it 'does not leak match variables' do
+      source = <<-SOURCE
+      if 'xyz' =~ /(x)(y)(z)/ { notice $2 }
+      case 'abc' {
+        /(a)(b)(c)/ : { $x = $2 }
+      }
+      "-$x-$2-"
+      SOURCE
+      expect(parser.evaluate_string(scope, source)).to eq('-b--')
+    end
   end
 
   matcher :have_relationship do |expected|

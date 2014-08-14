@@ -194,7 +194,11 @@ module Puppet
     end
 
     {
-      :environments => Puppet::Environments::Cached.new(*loaders)
+      :environments => Puppet::Environments::Cached.new(*loaders),
+      :http_pool => proc {
+        require 'puppet/network/http'
+        Puppet::Network::HTTP::NoCachePool.new
+      }
     }
   end
 
@@ -202,7 +206,7 @@ module Puppet
   # initialization where the {base_context} bindings are put in place
   # @api private
   def self.bootstrap_context
-    root_environment = Puppet::Node::Environment.create(:'*root*', [], '')
+    root_environment = Puppet::Node::Environment.create(:'*root*', [], Puppet::Node::Environment::NO_MANIFEST)
     {
       :current_environment => root_environment,
       :root_environment => root_environment

@@ -6,36 +6,6 @@ require 'puppet_spec/pops'
 # relative to this spec file (./) does not work as this file is loaded by rspec
 require File.join(File.dirname(__FILE__), '../parser/parser_rspec_helper')
 
-describe "validating 3x" do
-  include ParserRspecHelper
-  include PuppetSpec::Pops
-
-  let(:acceptor) { Puppet::Pops::Validation::Acceptor.new() }
-  let(:validator) { Puppet::Pops::Validation::ValidatorFactory_3_1.new().validator(acceptor) }
-
-  def validate(model)
-    validator.validate(model)
-    acceptor
-  end
-
-  it 'should raise error for illegal names' do
-    pending "validation was too strict, now too relaxed - validation missing"
-    expect(validate(fqn('Aaa'))).to have_issue(Puppet::Pops::Issues::ILLEGAL_NAME)
-    expect(validate(fqn('AAA'))).to have_issue(Puppet::Pops::Issues::ILLEGAL_NAME)
-  end
-
-  it 'should raise error for illegal variable names' do
-    pending "validation was too strict, now too relaxed - validation missing"
-    expect(validate(fqn('Aaa').var())).to have_issue(Puppet::Pops::Issues::ILLEGAL_NAME)
-    expect(validate(fqn('AAA').var())).to have_issue(Puppet::Pops::Issues::ILLEGAL_NAME)
-  end
-
-  it 'should raise error for -= assignment' do
-    expect(validate(fqn('aaa').minus_set(2))).to have_issue(Puppet::Pops::Issues::UNSUPPORTED_OPERATOR)
-  end
-
-end
-
 describe "validating 4x" do
   include ParserRspecHelper
   include PuppetSpec::Pops
@@ -148,6 +118,55 @@ describe "validating 4x" do
         expect(validate(parse(source))).to have_issue(Puppet::Pops::Issues::RESERVED_WORD)
       end
     end
+  end
+
+  context 'for reserved type names' do
+    [# type/Type, is a reserved name but results in syntax error because it is a keyword in lower case form
+    'any',
+    'unit',
+    'scalar',
+    'boolean',
+    'numeric',
+    'integer',
+    'float',
+    'collection',
+    'array',
+    'hash',
+    'tuple',
+    'struct',
+    'variant',
+    'optional',
+    'enum',
+    'regexp',
+    'pattern',
+    'runtime',
+    ].each do |name|
+
+      it "produces an error for 'class #{name}'" do
+        source = "class #{name} {}"
+        expect(validate(parse(source))).to have_issue(Puppet::Pops::Issues::RESERVED_TYPE_NAME)
+      end
+
+      it "produces an error for 'define #{name}'" do
+        source = "define #{name} {}"
+        expect(validate(parse(source))).to have_issue(Puppet::Pops::Issues::RESERVED_TYPE_NAME)
+      end
+    end
+  end
+
+  context 'for reserved parameter names' do
+    ['name', 'title'].each do |word|
+      it "produces an error when $#{word} is used as a parameter in a class" do
+        source = "class x ($#{word}) {}"
+        expect(validate(parse(source))).to have_issue(Puppet::Pops::Issues::RESERVED_PARAMETER)
+      end
+
+      it "produces an error when $#{word} is used as a parameter in a define" do
+        source = "define x ($#{word}) {}"
+        expect(validate(parse(source))).to have_issue(Puppet::Pops::Issues::RESERVED_PARAMETER)
+      end
+    end
+
   end
 
   def parse(source)

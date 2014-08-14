@@ -1,5 +1,6 @@
 require 'fileutils'
 require 'json'
+require 'puppet/file_system'
 
 module Puppet::ModuleTool
   module Applications
@@ -13,6 +14,7 @@ module Puppet::ModuleTool
 
       def run
         load_metadata!
+        sanity_check
         create_directory
         copy_contents
         write_json
@@ -63,6 +65,19 @@ module Puppet::ModuleTool
           else
             FileUtils.cp_r path, build_path, :preserve => true
           end
+        end
+      end
+
+      def sanity_check
+        symlinks = Dir.glob("#{@path}/**/*", File::FNM_DOTMATCH).map { |f| Pathname.new(f) }.select {|p| Puppet::FileSystem.symlink? p}
+        dirpath = Pathname.new @path
+
+        unless symlinks.empty?
+          symlinks.each do |s|
+            Puppet.warning "Symlinks in modules are unsupported. Please investigate symlink #{s.relative_path_from dirpath}->#{s.realpath.relative_path_from dirpath}."
+          end
+
+          raise Puppet::ModuleTool::Errors::ModuleToolError, "Found symlinks. Symlinks in modules are not allowed, please remove them."
         end
       end
 

@@ -24,7 +24,7 @@ class Puppet::Pops::Types::TypeParser
   #
   # @param string [String] a string with the type expressed in stringified form as produced by the 
   #   {Puppet::Pops::Types::TypeCalculator#string TypeCalculator#string} method.
-  # @return [Puppet::Pops::Types::PObjectType] a specialization of the PObjectType representing the type.
+  # @return [Puppet::Pops::Types::PAnyType] a specialization of the PAnyType representing the type.
   #
   # @api public
   #
@@ -47,7 +47,7 @@ class Puppet::Pops::Types::TypeParser
   def interpret(ast)
     result = @type_transformer.visit_this_0(self, ast)
     result = result.body if result.is_a?(Puppet::Pops::Model::Program)
-    raise_invalid_type_specification_error unless result.is_a?(Puppet::Pops::Types::PAbstractType)
+    raise_invalid_type_specification_error unless result.is_a?(Puppet::Pops::Types::PAnyType)
     result
   end
 
@@ -161,11 +161,13 @@ class Puppet::Pops::Types::TypeParser
       TYPES.catalog_entry()
 
     when "undef"
-      # Should not be interpreted as Resource type
       TYPES.undef()
 
-    when "object"
-      TYPES.object()
+    when "default"
+      TYPES.default()
+
+    when "any"
+      TYPES.any()
 
     when "variant"
       TYPES.variant()
@@ -173,8 +175,8 @@ class Puppet::Pops::Types::TypeParser
     when "optional"
       TYPES.optional()
 
-    when "ruby"
-      TYPES.ruby_type()
+    when "runtime"
+      TYPES.runtime()
 
     when "type"
       TYPES.type_type()
@@ -404,7 +406,7 @@ class Puppet::Pops::Types::TypeParser
       assert_type(parameters[0])
       TYPES.optional(parameters[0])
 
-    when "object", "data", "catalogentry", "boolean", "scalar", "undef", "numeric"
+    when "any", "data", "catalogentry", "boolean", "scalar", "undef", "numeric", "default"
       raise_unparameterized_type_error(parameterized_ast.left_expr)
 
     when "type"
@@ -414,9 +416,9 @@ class Puppet::Pops::Types::TypeParser
       assert_type(parameters[0])
       TYPES.type_type(parameters[0])
 
-    when "ruby"
-      raise_invalid_parameters_error("Ruby", "1", parameters.size) unless parameters.size == 1
-      TYPES.ruby_type(parameters[0])
+    when "runtime"
+      raise_invalid_parameters_error("Runtime", "2", parameters.size) unless parameters.size == 2
+      TYPES.runtime(*parameters)
 
     else
       # It is a resource such a File['/tmp/foo']
@@ -431,7 +433,7 @@ class Puppet::Pops::Types::TypeParser
   private
 
   def assert_type(t)
-    raise_invalid_type_specification_error unless t.is_a?(Puppet::Pops::Types::PObjectType)
+    raise_invalid_type_specification_error unless t.is_a?(Puppet::Pops::Types::PAnyType)
     true
   end
 

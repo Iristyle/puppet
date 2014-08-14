@@ -16,6 +16,21 @@ module Puppet
   AS_DURATION = %q{This setting can be a time interval in seconds (30 or 30s), minutes (30m), hours (6h), days (2d), or years (5y).}
   STORECONFIGS_ONLY = %q{This setting is only used by the ActiveRecord storeconfigs and inventory backends, which are deprecated.}
 
+  # This is defined first so that the facter implementation is replaced before other setting defaults are evaluated.
+  define_settings(:main,
+    :cfacter => {
+        :default => false,
+        :type    => :boolean,
+        :desc    => 'Whether or not to use the native facter (cfacter) implementation instead of the Ruby one (facter). Defaults to false.',
+        :hook    => proc do |value|
+          return unless value
+          raise ArgumentError, 'facter has already evaluated facts.' if Facter.instance_variable_get(:@collection)
+          require 'puppet/facts'
+          raise ArgumentError, 'cfacter version 0.2.0 or later is not installed.' unless Puppet::Facts.replace_facter
+        end
+    }
+  )
+
   define_settings(:main,
     :confdir  => {
         :default  => nil,
@@ -72,8 +87,16 @@ module Puppet
     :disable_warnings => {
       :default => [],
       :type    => :array,
-      :desc    => "A list of warning types to disable. Currently the only warning type that can be
-        disabled are deprecations, but more warning types may be added later.",
+      :desc    => "A comma-separated list of warning types to suppress. If large numbers
+        of warnings are making Puppet's logs too large or difficult to use, you
+        can temporarily silence them with this setting.
+
+        If you are preparing to upgrade Puppet to a new major version, you
+        should re-enable all warnings for a while.
+
+        Valid values for this setting are:
+
+        * `deprecations` --- disables deprecation warnings.",
       :hook      => proc do |value|
         values = munge(value)
         valid   = %w[deprecations]
@@ -238,7 +261,7 @@ module Puppet
       :type    => :path,
     },
     :diff_args => {
-        :default  => default_diffargs,
+        :default  => lambda { default_diffargs },
         :desc     => "Which arguments to pass to the diff command when printing differences between
           files. The command to use can be chosen with the `diff` setting.",
     },
@@ -366,11 +389,37 @@ module Puppet
     :http_proxy_host => {
       :default    => "none",
       :desc       => "The HTTP proxy host to use for outgoing connections.  Note: You
-      may need to use a FQDN for the server hostname when using a proxy.",
+      may need to use a FQDN for the server hostname when using a proxy. Environment variable
+      http_proxy or HTTP_PROXY will override this value",
     },
     :http_proxy_port => {
       :default    => 3128,
       :desc       => "The HTTP proxy port to use for outgoing connections",
+    },
+    :http_proxy_user => {
+      :default    => "none",
+      :desc       => "The user name for an authenticated HTTP proxy. Requires http_proxy_host.",
+    },
+    :http_proxy_password =>{
+      :default    => "none",
+      :hook       => proc do |value|
+        if Puppet.settings[:http_proxy_password] =~ /[@!# \/]/
+          raise "Special characters in passwords must be URL compliant, we received #{value}"
+        end
+      end,
+      :desc       => "The password for the user of an authenticated HTTP proxy. Requires http_proxy_user.
+      NOTE: Special characters must be escaped or encoded for URL compliance",
+    },
+    :http_keepalive_timeout => {
+      :default    => "4s",
+      :type       => :duration,
+      :desc       => "The maximum amount of time a persistent HTTP connection can remain idle in the connection pool, before it is closed.  This timeout should be shorter than the keepalive timeout used on the HTTP server, e.g. Apache KeepAliveTimeout directive.
+      #{AS_DURATION}"
+    },
+    :http_debug => {
+      :default    => false,
+      :type       => :boolean,
+      :desc       => "Whether to write HTTP request and responses to stderr. This should never be used in a production environment."
     },
     :filetimeout => {
       :default    => "15s",
@@ -495,6 +544,14 @@ module Puppet
     :module_skeleton_dir => {
         :default  => '$module_working_dir/skeleton',
         :desc     => "The directory which the skeleton for module tool generate is stored.",
+    },
+    :forge_authorization => {
+        :default  => nil,
+        :desc     => "The authorization key to connect to the Puppet Forge. Leave blank for unauthorized or license based connections",
+    },
+    :module_groups => {
+        :default  => nil,
+        :desc     => "Extra module groups to request from the Puppet Forge",
     }
   )
 
@@ -504,7 +561,8 @@ module Puppet
     # We have to downcase the fqdn, because the current ssl stuff (as oppsed to in master) doesn't have good facilities for
     # manipulating naming.
     :certname => {
-      :default => Puppet::Settings.default_certname.downcase, :desc => "The name to use when handling certificates. When a node
+      :default => lambda { Puppet::Settings.default_certname.downcase },
+      :desc => "The name to use when handling certificates. When a node
         requests a certificate from the CA puppet master, it uses the value of the
         `certname` setting as its requested Subject CN.
 
@@ -527,7 +585,6 @@ module Puppet
           for a normal node.
 
         Defaults to the node's fully qualified domain name.",
-      :call_hook => :on_define_and_write, # Call our hook with the default value, so we're always downcased
       :hook => proc { |value| raise(ArgumentError, "Certificate names must be lower case; see #1168") unless value == value.downcase }},
     :certdnsnames => {
       :default => '',
@@ -974,8 +1031,12 @@ EOT
       :owner => "service",
       :group => "service",
       :mode => 0660,
-      :desc => "Where puppet master logs.  This is generally not used,
-        since syslog is the default log destination."
+      :desc => "This file is literally never used, although Puppet may create it
+        as an empty file. For more context, see the `puppetdlog` setting and
+        puppet master's `--logdest` command line option.
+
+        This setting is deprecated and will be removed in a future version of Puppet.",
+      :deprecated => :completely
     },
     :masterhttplog => {
       :default => "$logdir/masterhttp.log",
@@ -984,7 +1045,10 @@ EOT
       :group => "service",
       :mode => 0660,
       :create => true,
-      :desc => "Where the puppet master web server logs."
+      :desc => "Where the puppet master web server saves its access log. This is
+        only used when running a WEBrick puppet master. When puppet master is
+        running under a Rack server like Passenger, that web server will have
+        its own logging behavior."
     },
     :masterport => {
       :default    => 8140,
@@ -1239,7 +1303,18 @@ EOT
       :type => :file,
       :owner => "root",
       :mode => 0640,
-      :desc => "The log file for puppet agent.  This is generally not used."
+      :desc => "The fallback log file. This is only used when the `--logdest` option
+        is not specified AND Puppet is running on an operating system where both
+        the POSIX syslog service and the Windows Event Log are unavailable. (Currently,
+        no supported operating systems match that description.)
+
+        Despite the name, both puppet agent and puppet master will use this file
+        as the fallback logging destination.
+
+        For control over logging destinations, see the `--logdest` command line
+        option in the manual pages for puppet master, puppet agent, and puppet
+        apply. You can see man pages by running `puppet <SUBCOMMAND> --help`,
+        or read them online at http://docs.puppetlabs.com/references/latest/man/."
     },
     :server => {
       :default => "puppet",
@@ -1251,7 +1326,7 @@ EOT
       :desc       => "Whether the server will search for SRV records in DNS for the current domain.",
     },
     :srv_domain => {
-      :default    => "#{Puppet::Settings.domain_fact}",
+      :default    => lambda { Puppet::Settings.domain_fact },
       :desc       => "The domain which will be queried to find the SRV records of servers to use.",
     },
     :ignoreschedules => {
@@ -1626,7 +1701,7 @@ EOT
     },
 
     :reportfrom => {
-        :default  => "report@" + [Facter["hostname"].value,Facter["domain"].value].join("."),
+        :default  => lambda { "report@#{Puppet::Settings.default_certname.downcase}" },
         :desc     => "The 'from' email address for the reports.",
     },
 
@@ -1639,7 +1714,7 @@ EOT
         :desc     => "The TCP port through which to send email reports.",
     },
     :smtphelo => {
-        :default  => Facter["fqdn"].value,
+        :default  => lambda { Facter.value 'fqdn' },
         :desc     => "The name by which we identify ourselves in SMTP HELO for reports.
           If you send to a smtpserver which does strict HELO checking (as with Postfix's
           `smtpd_helo_restrictions` access controls), you may need to ensure this resolves.",
@@ -1901,7 +1976,7 @@ EOT
         language/'.pp' files). Available choices are `current` (the default)
         and `future`.
 
-        The `curent` parser means that the released version of the parser should
+        The `current` parser means that the released version of the parser should
         be used.
 
         The `future` parser is a "time travel to the future" allowing early
@@ -1911,50 +1986,6 @@ EOT
         Available Since Puppet 3.2.
       EOT
     },
-    :evaluator => {
-      :default => "future",
-      :hook => proc do |value|
-        if !['future', 'current'].include?(value)
-          raise "evaluator can only be set to 'future' or 'current', got '#{value}'"
-        end
-      end,
-      :desc => <<-'EOT'
-        Which evaluator to use when compiling Puppet manifests. Valid values
-        are `current` and `future` (the default).
-
-        **Note:** This setting is only used when `parser = future`. It allows
-        testers to turn off the `future` evaluator when doing detailed tests and
-        comparisons of the new compilation system.
-
-        Evaluation is the second stage of catalog compilation. After the parser
-        converts a manifest to a model of expressions, the evaluator processes
-        each expression. (For example, a resource declaration signals the
-        evaluator to add a resource to the catalog).
-
-        The `future` parser and evaluator are slated to become default in Puppet
-        4. Their purpose is to add new features and improve consistency
-        and reliability.
-
-        Available Since Puppet 3.5.
-      EOT
-    },
-   :biff => {
-     :default => false,
-     :type => :boolean,
-     :hook => proc do |value|
-       if Puppet.settings[:parser] != 'future'
-         Puppet.settings.override_default(:parser, 'future')
-       end
-       if Puppet.settings[:evaluator] != 'future'
-         Puppet.settings.override_default(:evaluator, 'future')
-       end
-     end,
-     :desc => <<-EOT
-       Turns on Biff the catalog builder, future parser, and future evaluator.
-       This is an experimental feature - and this setting may go away before
-       release of Pupet 3.6.
-     EOT
-   },
    :max_errors => {
      :default => 10,
      :desc => <<-'EOT'

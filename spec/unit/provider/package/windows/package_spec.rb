@@ -45,7 +45,7 @@ describe Puppet::Provider::Package::Windows::Package do
     end
 
     it 'should ignore file not found exceptions' do
-      ex = Puppet::Util::Windows::Error.new('Failed to open registry key', Windows::Error::ERROR_FILE_NOT_FOUND)
+      ex = Puppet::Util::Windows::Error.new('Failed to open registry key', Puppet::Util::Windows::Error::ERROR_FILE_NOT_FOUND)
 
       # make sure we don't stop after the first exception
       subject.expects(:open).times(4).raises(ex)
@@ -56,12 +56,12 @@ describe Puppet::Provider::Package::Windows::Package do
     end
 
     it 'should raise other types of exceptions' do
-      ex = Puppet::Util::Windows::Error.new('Failed to open registry key', Windows::Error::ERROR_ACCESS_DENIED)
+      ex = Puppet::Util::Windows::Error.new('Failed to open registry key', Puppet::Util::Windows::Error::ERROR_ACCESS_DENIED)
       subject.expects(:open).raises(ex)
 
       expect {
         subject.with_key{ |key, values| }
-      }.to raise_error(Puppet::Error, /Access is denied/)
+      }.to raise_error(Puppet::Util::Windows::Error, /Access is denied/)
     end
   end
 
@@ -100,6 +100,21 @@ describe Puppet::Provider::Package::Windows::Package do
           subject.installer_class({:source => 'basram'})
         }.to raise_error(Puppet::Error, /Don't know how to install 'basram'/)
       end
+    end
+  end
+
+  context '::munge' do
+    it 'should shell quote strings with spaces and fix forward slashes' do
+      subject.munge('c:/windows/the thing').should == '"c:\windows\the thing"'
+    end
+    it 'should leave properly formatted paths alone' do
+      subject.munge('c:\windows\thething').should == 'c:\windows\thething'
+    end
+  end
+
+  context '::replace_forward_slashes' do
+    it 'should replace forward with back slashes' do
+      subject.replace_forward_slashes('c:/windows/thing/stuff').should == 'c:\windows\thing\stuff'
     end
   end
 

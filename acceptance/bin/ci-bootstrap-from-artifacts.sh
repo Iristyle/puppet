@@ -36,13 +36,17 @@ if [[ "${platform}" =~ 'solaris' ]]; then
   repo_proxy="  :repo_proxy => false,"
 fi
 
+# If the platform is Windows and $ruby_arch is set, append it
+if [[ "${platform}" =~ 'win' && ! -z $ruby_arch ]]; then
+    platform="${platform}-${ruby_arch}"
+fi
+
 cat > local_options.rb <<-EOF
 {
   :hosts_file => 'config/nodes/${platform}.yaml',
   :ssh => {
     :keys => ["${HOME}/.ssh/id_rsa-old.private"],
   },
-  :forge_host => 'forge-aio01-petest.puppetlabs.com',
 ${repo_proxy}
 }
 EOF

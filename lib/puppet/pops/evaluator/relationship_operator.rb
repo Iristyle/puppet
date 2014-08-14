@@ -62,7 +62,7 @@ class Puppet::Pops::Evaluator::RelationshipOperator
 
   # Types are what they are, just check the type
   # @api private
-  def transform_PAbstractType(o, scope)
+  def transform_PAnyType(o, scope)
     assert_catalog_type(o, scope)
   end
 
@@ -86,7 +86,6 @@ class Puppet::Pops::Evaluator::RelationshipOperator
   #
   def assert_catalog_type(o, scope)
     unless @type_calculator.assignable?(@catalog_type, o)
-      require 'debugger'; debugger
       raise NotCatalogTypeError.new(o)
     end
     # TODO must check if this is an abstract PResourceType (i.e. without a type_name) - which should fail ?

@@ -3,13 +3,6 @@ require 'spec_helper'
 
 describe Puppet::Util::Execution do
   include Puppet::Util::Execution
-  # utility method to help deal with some windows vs. unix differences
-  def process_status(exitstatus)
-    return exitstatus if Puppet.features.microsoft_windows?
-
-    stub('child_status', :exitstatus => exitstatus)
-  end
-
   # utility methods to help us test some private methods without being quite so verbose
   def call_exec_posix(command, arguments, stdin, stdout, stderr)
     Puppet::Util::Execution.send(:execute_posix, command, arguments, stdin, stdout, stderr)
@@ -28,8 +21,8 @@ describe Puppet::Util::Execution do
     def stub_process_wait(exitstatus)
       if Puppet.features.microsoft_windows?
         Puppet::Util::Windows::Process.stubs(:wait_process).with(process_handle).returns(exitstatus)
-        Process.stubs(:CloseHandle).with(process_handle)
-        Process.stubs(:CloseHandle).with(thread_handle)
+        FFI::WIN32.stubs(:CloseHandle).with(process_handle)
+        FFI::WIN32.stubs(:CloseHandle).with(thread_handle)
       else
         Process.stubs(:waitpid2).with(pid).returns([pid, stub('child_status', :exitstatus => exitstatus)])
       end
@@ -306,8 +299,8 @@ describe Puppet::Util::Execution do
           Puppet::Util::Execution.stubs(:execute_windows).returns(proc_info_stub)
 
           Puppet::Util::Windows::Process.expects(:wait_process).with(process_handle).raises('whatever')
-          Puppet::Util::Windows::Process.expects(:CloseHandle).with(thread_handle)
-          Puppet::Util::Windows::Process.expects(:CloseHandle).with(process_handle)
+          FFI::WIN32.expects(:CloseHandle).with(thread_handle)
+          FFI::WIN32.expects(:CloseHandle).with(process_handle)
 
           expect { Puppet::Util::Execution.execute('test command') }.to raise_error(RuntimeError)
         end
@@ -597,40 +590,39 @@ describe Puppet::Util::Execution do
   describe "#execpipe" do
     it "should execute a string as a string" do
       Puppet::Util::Execution.expects(:open).with('| echo hello 2>&1').returns('hello')
-      $CHILD_STATUS.expects(:==).with(0).returns(true)
+      Puppet::Util::Execution.expects(:exitstatus).returns(0)
       Puppet::Util::Execution.execpipe('echo hello').should == 'hello'
     end
 
     it "should print meaningful debug message for string argument" do
       Puppet::Util::Execution.expects(:debug).with("Executing 'echo hello'")
       Puppet::Util::Execution.expects(:open).with('| echo hello 2>&1').returns('hello')
-      $CHILD_STATUS.expects(:==).with(0).returns(true)
+      Puppet::Util::Execution.expects(:exitstatus).returns(0)
       Puppet::Util::Execution.execpipe('echo hello')
     end
 
     it "should print meaningful debug message for array argument" do
       Puppet::Util::Execution.expects(:debug).with("Executing 'echo hello'")
       Puppet::Util::Execution.expects(:open).with('| echo hello 2>&1').returns('hello')
-      $CHILD_STATUS.expects(:==).with(0).returns(true)
+      Puppet::Util::Execution.expects(:exitstatus).returns(0)
       Puppet::Util::Execution.execpipe(['echo','hello'])
     end
 
     it "should execute an array by pasting together with spaces" do
       Puppet::Util::Execution.expects(:open).with('| echo hello 2>&1').returns('hello')
-      $CHILD_STATUS.expects(:==).with(0).returns(true)
+      Puppet::Util::Execution.expects(:exitstatus).returns(0)
       Puppet::Util::Execution.execpipe(['echo', 'hello']).should == 'hello'
     end
 
     it "should fail if asked to fail, and the child does" do
-      Puppet::Util::Execution.stubs(:open).returns('error message')
-      $CHILD_STATUS.expects(:==).with(0).returns(false)
+      Puppet::Util::Execution.stubs(:open).with('| echo hello 2>&1').returns('error message')
+      Puppet::Util::Execution.expects(:exitstatus).returns(1)
       expect { Puppet::Util::Execution.execpipe('echo hello') }.
         to raise_error Puppet::ExecutionFailure, /error message/
     end
 
     it "should not fail if asked not to fail, and the child does" do
       Puppet::Util::Execution.stubs(:open).returns('error message')
-      $CHILD_STATUS.stubs(:==).with(0).returns(false)
       Puppet::Util::Execution.execpipe('echo hello', false).should == 'error message'
     end
   end

@@ -79,8 +79,9 @@ module Puppet::Util::Colors
   # We define console_has_color? at load time since it's checking the
   # underlying platform which will not change, and we don't want to perform
   # the check every time we use logging
-  if Puppet::Util::Platform.windows?
-    # We're on windows, need win32console for color to work
+  if Puppet::Util::Platform.windows? && RUBY_VERSION =~ /^1\./
+    # We're on windows and using ruby less than v2
+    # so we need win32console for color to work
     begin
       require 'ffi'
       require 'win32console'
@@ -133,15 +134,29 @@ module Puppet::Util::Colors
           writeCoord[:X] = row
           writeCoord[:Y] = col
 
-          numberOfCharsWritten_ptr = FFI::MemoryPointer.new(:dword, 1)
-          WriteConsoleOutputCharacterW(@handle, FFI::MemoryPointer.from_string_to_wide_string(str),
-            str.length, writeCoord, numberOfCharsWritten_ptr)
-          numberOfCharsWritten_ptr.read_dword
+          chars_written = 0
+          FFI::MemoryPointer.from_string_to_wide_string(str) do |msg_ptr|
+            FFI::MemoryPointer.new(:dword, 1) do |numberOfCharsWritten_ptr|
+              WriteConsoleOutputCharacterW(@handle, msg_ptr,
+                str.length, writeCoord, numberOfCharsWritten_ptr)
+              chars_written = numberOfCharsWritten_ptr.read_dword
+            end
+          end
+
+          chars_written
         end
 
         def Write(str)
-          WriteConsoleW(@handle, FFI::MemoryPointer.from_string_to_wide_string(str),
-            str.length, FFI::MemoryPointer.new(:dword, 1), FFI::MemoryPointer::NULL)
+          result = false
+          FFI::MemoryPointer.from_string_to_wide_string(str) do |msg_ptr|
+            FFI::MemoryPointer.new(:dword, 1) do |numberOfCharsWritten_ptr|
+              result = WriteConsoleW(@handle, msg_ptr,
+                str.length, FFI::MemoryPointer.new(:dword, 1),
+                FFI::MemoryPointer::NULL) != FFI::WIN32_FALSE
+            end
+          end
+
+          result
         end
       end
 

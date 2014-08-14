@@ -111,6 +111,9 @@ module PuppetSpec
             "1.0.1" => { "pmtacceptance-pe_version" => ">0.0.0" },
             "2.0.0" => { "pmtacceptance-pe_version" => ">=2.0.0" },
           },
+          'puppetlabs-oneversion' => {
+            "0.0.1" => {}
+          }
         }
 
         @available_releases.each do |name, versions|

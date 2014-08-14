@@ -174,6 +174,17 @@ class Puppet::Pops::Validation::Checker4_0
     rvalue(o.value_expr)
   end
 
+  def check_AttributesOperation(o)
+    # Append operator use is constrained
+    parent = o.eContainer
+    parent = parent.eContainer unless parent.nil?
+    unless parent.is_a?(Model::ResourceExpression)
+      acceptor.accept(Issues::UNSUPPORTED_OPERATOR, o, :operator=>'* =>')
+    end
+
+    rvalue(o.expr)
+  end
+
   def check_BinaryExpression(o)
     rvalue(o.left_expr)
     rvalue(o.right_expr)
@@ -245,12 +256,39 @@ class Puppet::Pops::Validation::Checker4_0
     end
   end
 
+  RESERVED_TYPE_NAMES = {
+    'type' => true,
+    'any' => true,
+    'unit' => true,
+    'scalar' => true,
+    'boolean' => true,
+    'numeric' => true,
+    'integer' => true,
+    'float' => true,
+    'collection' => true,
+    'array' => true,
+    'hash' => true,
+    'tuple' => true,
+    'struct' => true,
+    'variant' => true,
+    'optional' => true,
+    'enum' => true,
+    'regexp' => true,
+    'pattern' => true,
+    'runtime' => true,
+  }
+
   # for 'class', 'define', and function
   def check_NamedDefinition(o)
     top(o.eContainer, o)
     if o.name !~ Puppet::Pops::Patterns::CLASSREF
       acceptor.accept(Issues::ILLEGAL_DEFINITION_NAME, o, {:name=>o.name})
     end
+
+    if RESERVED_TYPE_NAMES[o.name()]
+      acceptor.accept(Issues::RESERVED_TYPE_NAME, o, {:name => o.name})
+    end
+
     if violator = ends_with_idem(o.body)
       acceptor.accept(Issues::IDEM_NOT_ALLOWED_LAST, violator, {:container => o})
     end
@@ -259,11 +297,13 @@ class Puppet::Pops::Validation::Checker4_0
   def check_HostClassDefinition(o)
     check_NamedDefinition(o)
     internal_check_no_capture(o)
+    internal_check_reserved_params(o)
   end
 
   def check_ResourceTypeDefinition(o)
     check_NamedDefinition(o)
     internal_check_no_capture(o)
+    internal_check_reserved_params(o)
   end
 
   def internal_check_capture_last(o)
@@ -276,9 +316,22 @@ class Puppet::Pops::Validation::Checker4_0
   end
 
   def internal_check_no_capture(o, container = o)
-    o.parameters.each_with_index do |p, index|
+    o.parameters.each do |p|
       if p.captures_rest
         acceptor.accept(Issues::CAPTURES_REST_NOT_SUPPORTED, p, {:container => container, :param_name => p.name})
+      end
+    end
+  end
+
+  RESERVED_PARAMETERS = {
+    'name' => true,
+    'title' => true,
+  }
+
+  def internal_check_reserved_params(o)
+    o.parameters.each do |p|
+      if RESERVED_PARAMETERS[p.name]
+        acceptor.accept(Issues::RESERVED_PARAMETER, p, {:container => o, :param_name => p.name})
       end
     end
   end
@@ -365,19 +418,22 @@ class Puppet::Pops::Validation::Checker4_0
   end
 
   def check_ResourceExpression(o)
-    # A resource expression must have a lower case NAME as its type e.g. 'file { ... }'
-    unless o.type_name.is_a? Model::QualifiedName
-      acceptor.accept(Issues::ILLEGAL_EXPRESSION, o.type_name, :feature => 'resource type', :container => o)
-    end
+    # TODO: Can no longer be asserted
 
-    # This is a runtime check - the model is valid, but will have runtime issues when evaluated
-    # and storeconfigs is not set.
-    if acceptor.will_accept?(Issues::RT_NO_STORECONFIGS) && o.exported
-      acceptor.accept(Issues::RT_NO_STORECONFIGS_EXPORT, o)
-    end
+    ## A resource expression must have a lower case NAME as its type e.g. 'file { ... }'
+    #unless o.type_name.is_a? Model::QualifiedName
+    #  acceptor.accept(Issues::ILLEGAL_EXPRESSION, o.type_name, :feature => 'resource type', :container => o)
+    #end
+
   end
 
   def check_ResourceDefaultsExpression(o)
+    if o.form && o.form != :regular
+      acceptor.accept(Issues::NOT_VIRTUALIZEABLE, o)
+    end
+  end
+
+  def check_ResourceOverrideExpression(o)
     if o.form && o.form != :regular
       acceptor.accept(Issues::NOT_VIRTUALIZEABLE, o)
     end
@@ -525,10 +581,6 @@ class Puppet::Pops::Validation::Checker4_0
   # Implement specific rvalue checks for those that are not.
   #
   def rvalue_Expression(o); end
-
-  def rvalue_ResourceDefaultsExpression(o); acceptor.accept(Issues::NOT_RVALUE, o) ; end
-
-  def rvalue_ResourceOverrideExpression(o); acceptor.accept(Issues::NOT_RVALUE, o) ; end
 
   def rvalue_CollectExpression(o)         ; acceptor.accept(Issues::NOT_RVALUE, o) ; end
 

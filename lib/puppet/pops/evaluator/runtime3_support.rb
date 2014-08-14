@@ -5,6 +5,8 @@
 # @api private
 module Puppet::Pops::Evaluator::Runtime3Support
 
+  NAME_SPACE_SEPARATOR = '::'.freeze
+
   # Fails the evaluation of _semantic_ with a given issue.
   #
   # @param issue [Puppet::Pops::Issue] the issue to report
@@ -72,7 +74,11 @@ module Puppet::Pops::Evaluator::Runtime3Support
     # Not ideal, scope should support numeric lookup directly instead.
     # TODO: consider fixing scope
     catch(:undefined_variable) {
-      return scope.lookupvar(name.to_s)
+      x = scope.lookupvar(name.to_s)
+      # Must convert :undef back to nil - this can happen when an undefined variable is used in a
+      # parameter's default value expression - there nil must be :undef to work with the rest of 3x.
+      # Now that the value comes back to 4x it is changed to nil.
+      return (x == :undef) ? nil : x
     }
     # It is always ok to reference numeric variables even if they are not assigned. They are always undef
     # if not set by a match expression.
@@ -95,7 +101,7 @@ module Puppet::Pops::Evaluator::Runtime3Support
     scope.exist?(name.to_s)
   end
 
-  def set_match_data(match_data, o, scope)
+  def set_match_data(match_data, scope)
     # See set_variable for rationale for not passing file and line to ephemeral_from.
     # NOTE: The 3x scope adds one ephemeral(match) to its internal stack per match that succeeds ! It never
     # clears anything. Thus a context that performs many matches will get very deep (there simply is no way to
@@ -223,32 +229,22 @@ module Puppet::Pops::Evaluator::Runtime3Support
     n
   end
 
-  # Horrible cheat while waiting for iterative functions to be 4x
-  FUNCTIONS_4x = { 'map' => true, 'each'=>true, 'filter' => true, 'reduce' => true, 'slice' => true }
   def call_function(name, args, o, scope)
-    # Call via 4x API if it is available, and the function exists
-    #
-    if loaders = Puppet.lookup(:loaders) {nil}
-      # find the loader that loaded the code, or use the private_environment_loader (sees env + all modules)
-      adapter = Puppet::Pops::Utils.find_adapter(o, Puppet::Pops::Adapters::LoaderAdapter)
-      loader = adapter.nil? ? loaders.private_environment_loader : adapter.loader
-      if loader && func = loader.load(:function, name)
-        return func.call(scope, *args)
-      end
+    # Call via 4x API if the function exists there
+    loaders = scope.compiler.loaders
+    # find the loader that loaded the code, or use the private_environment_loader (sees env + all modules)
+    adapter = Puppet::Pops::Utils.find_adapter(o, Puppet::Pops::Adapters::LoaderAdapter)
+    loader = adapter.nil? ? loaders.private_environment_loader : adapter.loader
+    if loader && func = loader.load(:function, name)
+      return func.call(scope, *args)
     end
 
+    # Call via 3x API if function exists there
     fail(Puppet::Pops::Issues::UNKNOWN_FUNCTION, o, {:name => name}) unless Puppet::Parser::Functions.function(name)
 
-    # TODO: if Puppet[:biff] == true, then 3x functions should be called via loaders above
     # Arguments must be mapped since functions are unaware of the new and magical creatures in 4x.
-
-    # Do not map the iterative functions, they are capable of dealing with 4x API, and they do
-    # call out to lambdas, and thus, given arguments needs to be preserved (instead of transforming to
-    # '' when undefined). TODO: The iterative functions should be refactored to use the new function API
-    # directly, when this has been done, this special filtering out can be removed
-
-    # NOTE: Passing an empty string last converts :undef to empty string
-    mapped_args = FUNCTIONS_4x[name] ? args : args.map {|a| convert(a, scope, '') }
+    # NOTE: Passing an empty string last converts nil/:undef to empty string
+    mapped_args = args.map {|a| convert(a, scope, '') }
     result = scope.send("function_#{name}", mapped_args)
     # Prevent non r-value functions from leaking their result (they are not written to care about this)
     Puppet::Parser::Functions.rvalue?(name) ? result : nil
@@ -259,11 +255,14 @@ module Puppet::Pops::Evaluator::Runtime3Support
     file, line = extract_file_line(o)
     Puppet::Parser::Resource::Param.new(
       :name   => name,
+      # Here we must convert nil values to :undef for the 3x logic to work
       :value  => convert(value, scope, :undef), # converted to 3x since 4x supports additional objects / types
       :source => scope.source, :line => line, :file => file,
       :add    => operator == :'+>'
     )
   end
+
+  CLASS_STRING = 'class'.freeze
 
   def create_resources(o, scope, virtual, exported, type_name, resource_titles, evaluated_parameters)
 
@@ -299,7 +298,7 @@ module Puppet::Pops::Evaluator::Runtime3Support
           resource.resource_type.instantiate_resource(scope, resource)
         end
         scope.compiler.add_resource(scope, resource)
-        scope.compiler.evaluate_classes([resource_title], scope, false, true) if fully_qualified_type == 'class'
+        scope.compiler.evaluate_classes([resource_title], scope, false, true) if fully_qualified_type == CLASS_STRING
         # Turn the resource into a PType (a reference to a resource type)
         # weed out nil's
         resource_to_ptype(resource)
@@ -320,7 +319,7 @@ module Puppet::Pops::Evaluator::Runtime3Support
   # Capitalizes each segment of a qualified name
   #
   def capitalize_qualified_name(name)
-    name.split(/::/).map(&:capitalize).join('::')
+    name.split(/::/).map(&:capitalize).join(NAME_SPACE_SEPARATOR)
   end
 
   # Creates resource overrides for all resource type objects in evaluated_resources. The same set of
@@ -335,6 +334,9 @@ module Puppet::Pops::Evaluator::Runtime3Support
     file, line = extract_file_line(o)
 
     evaluated_resources.each do |r|
+      unless r.is_a?(Puppet::Pops::Types::PResourceType) && r.type_name != 'class'
+        fail(Puppet::Pops::Issues::ILLEGAL_OVERRIDEN_TYPE, o, {:actual => r} )
+      end
       resource = Puppet::Parser::Resource.new(
       r.type_name, r.title,
         :parameters => evaluated_parameters,
@@ -363,7 +365,11 @@ module Puppet::Pops::Evaluator::Runtime3Support
   def get_resource_parameter_value(scope, resource, parameter_name)
     # This gets the parameter value, or nil (for both valid parameters and parameters that do not exist).
     val = resource[parameter_name]
-    if val.nil? && defaults = scope.lookupdefaults(resource.type)
+
+    # The defaults must be looked up in the scope where the resource was created (not in the given
+    # scope where the lookup takes place.
+    resource_scope = resource.scope
+    if val.nil? && resource_scope && defaults = resource_scope.lookupdefaults(resource.type)
       # NOTE: 3x resource keeps defaults as hash using symbol for name as key to Parameter which (again) holds
       # name and value.
       # NOTE: meta parameters that are unset ends up here, and there are no defaults for those encoded
@@ -384,7 +390,8 @@ module Puppet::Pops::Evaluator::Runtime3Support
 
   def resource_to_ptype(resource)
     nil if resource.nil?
-    type_calculator.infer(resource)
+    # inference returns the meta type since the 3x Resource is an alternate way to describe a type
+    type_calculator.infer(resource).type
   end
 
   # This is the same type of "truth" as used in the current Puppet DSL.
@@ -393,6 +400,7 @@ module Puppet::Pops::Evaluator::Runtime3Support
     # Is the value true?  This allows us to control the definition of truth
     # in one place.
     case o
+    # Support :undef since it may come from a 3x structure
     when :undef
       false
     else
@@ -424,6 +432,11 @@ module Puppet::Pops::Evaluator::Runtime3Support
     undef_value
   end
 
+  def convert_String(o, scope, undef_value)
+    # although wasteful, needed because user code may mutate these strings in Resources
+    o.frozen? ? o.dup : o
+  end
+
   def convert_Object(o, scope, undef_value)
     o
   end
@@ -446,14 +459,15 @@ module Puppet::Pops::Evaluator::Runtime3Support
 
   def convert_Symbol(o, scope, undef_value)
     case o
+    # Support :undef since it may come from a 3x structure
     when :undef
-      undef_value  # 3x wants :undef as empty string in function
+      undef_value  # 3x wants undef as either empty string or :undef
     else
       o   # :default, and all others are verbatim since they are new in future evaluator
     end
   end
 
-  def convert_PAbstractType(o, scope, undef_value)
+  def convert_PAnyType(o, scope, undef_value)
     o
   end
 
@@ -527,6 +541,10 @@ module Puppet::Pops::Evaluator::Runtime3Support
       else
         p[Issues::EMPTY_RESOURCE_SPECIALIZATION] = :ignore
       end
+
+      # Store config issues, ignore or warning
+      p[Issues::RT_NO_STORECONFIGS_EXPORT]    = Puppet[:storeconfigs] ? :ignore : :warning
+      p[Issues::RT_NO_STORECONFIGS]           = Puppet[:storeconfigs] ? :ignore : :warning
     end
   end
 

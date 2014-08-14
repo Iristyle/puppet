@@ -9,7 +9,7 @@
 # @example using custom error message
 #   $a = assert_type(String[1], $b) |$expected, $actual| { fail("The name cannot be empty") }
 #
-# @example, using a warning and a default
+# @example using a warning and a default
 #   $a = assert_type(String[1], $b) |$expected, $actual| { warning("Name is empty, using default") 'anonymous' }
 #
 # See the documentation for "The Puppet Type System" for more information about types.
@@ -17,14 +17,14 @@
 Puppet::Functions.create_function(:assert_type) do
   dispatch :assert_type do
     param 'Type', 'type'
-    param 'Object', 'value'
-    optional_block_param 'Callable[Object, Object]', 'block'
+    param 'Any', 'value'
+    optional_block_param 'Callable[Type, Type]', 'block'
   end
 
   dispatch :assert_type_s do
     param 'String', 'type_string'
-    param 'Object', 'value'
-    optional_block_param 'Callable[Object, Object]', 'block'
+    param 'Any', 'value'
+    optional_block_param 'Callable[Type, Type]', 'block'
   end
 
   # @param type [Type] the type the value must be an instance of
@@ -33,13 +33,16 @@ Puppet::Functions.create_function(:assert_type) do
   def assert_type(type, value, block=nil)
     unless Puppet::Pops::Types::TypeCalculator.instance?(type,value)
       inferred_type = Puppet::Pops::Types::TypeCalculator.infer(value)
-      # Do not give all the details - i.e. format as Integer, instead of Integer[n, n] for exact value, which
-      # is just confusing. (OTOH: may need to revisit, or provide a better "type diff" output.
-      #
-      actual = Puppet::Pops::Types::TypeCalculator.generalize!(inferred_type)
       if block
-        value = block.call(nil, type, actual)
+        # Give the inferred type to allow richer comparisson in the given block (if generalized
+        # information is lost).
+        #
+        value = block.call(nil, type, inferred_type)
       else
+        # Do not give all the details - i.e. format as Integer, instead of Integer[n, n] for exact value, which
+        # is just confusing. (OTOH: may need to revisit, or provide a better "type diff" output.
+        #
+        actual = Puppet::Pops::Types::TypeCalculator.generalize!(inferred_type)
         raise Puppet::ParseError, "assert_type(): Expected type #{type} does not match actual: #{actual}"
       end
     end
