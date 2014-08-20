@@ -515,7 +515,7 @@ module Puppet
           class, or definition other than in the site manifest.",
     },
     :stringify_facts => {
-      :default => true,
+      :default => false,
       :type    => :boolean,
       :desc    => "Flatten fact values to strings using #to_s. Means you can't have arrays or
         hashes as fact values.",
