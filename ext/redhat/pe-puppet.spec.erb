@@ -443,7 +443,10 @@ exit 0
 export PATH=/usr/bin:/usr/sbin:$PATH
 # Add pe-puppet as a subsystem in AIX
 mkssys -p /opt/puppet/bin/ruby -s %{name} -u root -a '/opt/puppet/bin/puppet agent --no-daemonize' -w 7 -S -n 15 -f 9 > /dev/null  2>&1 || :
-mkitab %{name}:2:once:startsrc -s %{name} > /dev/null 2>&1 || :
+if /bin/grep -q "^pe-puppet:2:once:startsrc$" /etc/inittab; then
+  rmitab pe-puppet > /dev/null 2>&1 || :
+fi
+mkitab "%{name}:2:once:/usr/bin/startsrc -s %{name}" > /dev/null 2>&1 || :
 %endif
 %if 0%{?_with_sysvinit}
 /sbin/chkconfig --add %{name} || :
