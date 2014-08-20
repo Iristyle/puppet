@@ -521,7 +521,7 @@ module Puppet
         hashes as fact values.",
     },
     :trusted_node_data => {
-      :default => false,
+      :default => true,
       :type    => :boolean,
       :desc    => "Stores trusted node data in a hash called $trusted.
         When true also prevents $trusted from being overridden in any scope.",
