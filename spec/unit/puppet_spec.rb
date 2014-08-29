@@ -7,7 +7,8 @@ require 'semver'
 describe Puppet do
   include PuppetSpec::Files
 
-  context "#version" do
+  # Puppet.verson (and Puppet::PUPPETVERSION) are not SemVer in PE.
+  context "#version", :if => ! defined? Puppet::PEVERSION do
     it "should be valid semver" do
       SemVer.should be_valid Puppet.version
     end
