@@ -18,7 +18,7 @@
 %endif
 
 # EL > 7 and SLES >= 12 use systemd
-%if 0%{?rhel} >= 7 || 0%{?sles_version} >= 12
+%if 0%{?rhel} >= 7 || 0%{?suse_version} >= 1315
 %global _with_systemd 1
 %endif
 
@@ -27,7 +27,7 @@
 %global _old_el        1
 %endif
 
-%if 0%{?sles_version} && 0%{?sles_version} < 12
+%if 0%{?suse_version} && 0%{?suse_version} <= 1110
 %global _with_sysvinit 1
 %global _old_sles      1
 %endif
@@ -451,8 +451,11 @@ mkitab "%{name}:2:once:/usr/bin/startsrc -s %{name}" > /dev/null 2>&1 || :
 %if 0%{?_with_sysvinit}
 /sbin/chkconfig --add %{name} || :
 %endif
-%if 0%{?_with_systemd}
+%if 0%{?rhel} && 0%{?_with_systemd}
 %systemd_post %{name}.service
+%endif
+%if 0%{?suse_version} && 0%{?_with_systemd}
+%service_add_post %{name}.service
 %endif
 %if 0%{?_eos}
 if [ "${1}" = 1 ]; then
@@ -475,8 +478,11 @@ if [ "${1}" = 0 ] ; then
   /sbin/chkconfig --del %{name} || :
 fi
 %endif
-%if 0%{?_with_systemd}
+%if 0%{?rhel} && 0%{?_with_systemd}
 %systemd_preun %{name}.service
+%endif
+%if 0%{?suse_version} && 0%{?_with_systemd}
+%service_del_preun %{name}.service
 %endif
 %if 0%{?_eos}
 if [ "${1}" = 0 ]; then
@@ -496,8 +502,11 @@ if [ "${1}" -eq 0 ]; then
   rmitab %{name} > /dev/null 2>&1 || :
 fi
 %endif
-%if 0%{?_with_systemd}
+%if 0%{?rhel} && 0%{?_with_systemd}
 %systemd_postun_with_restart %{name}.service
+%endif
+%if 0%{?suse_version} && 0%{?_with_systemd}
+%service_del_postun %{name}.service
 %endif
 %if 0%{?_with_sysvinit}
 if [ "${1}" -ge 1 ]; then
