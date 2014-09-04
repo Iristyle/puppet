@@ -127,9 +127,17 @@ BuildRequires:  %{?name_prefix}ruby
 BuildRequires:  coreutils sed
 %endif
 
-%if 0%{!?_aix:1}
+%if 0%{!?_aix:1} && 0%{!?suse_version}
 Requires:       %{?name_prefix}ruby-shadow
 Requires:       shadow-utils
+Requires:       logrotate
+%endif
+
+# In SLES < 12, pwdutils provides shadow-utils. They stopped doing that,
+# for some reason, in 12.
+%if 0%{?suse_version}
+Requires:       %{?name_prefix}ruby-shadow
+Requires:       pwdutils
 Requires:       logrotate
 %endif
 
