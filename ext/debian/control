@@ -8,7 +8,7 @@ Homepage: http://www.puppetlabs.com/
 
 Package: pe-puppet
 Architecture: all
-Depends: ${misc:Depends}, pe-ruby, pe-facter, pe-hiera, pe-ruby-rgen, pe-ruby-shadow, adduser
+Depends: ${misc:Depends}, pe-ruby, pe-facter, pe-hiera, pe-ruby-shadow, adduser
 Replaces: pe-puppet-agent, pe-puppet-common, pe-puppet-module-tool, pe-rubygem-hiera-puppet
 Provides: pe-puppet-agent, pe-puppet-common, pe-puppet-module-tool, pe-rubygem-hiera-puppet
 Description: Puppet Enterprise - Puppet Agent

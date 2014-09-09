@@ -2,9 +2,11 @@ require 'puppet'
 require 'getoptlong'
 require 'puppet/util/watched_file'
 require 'puppet/util/command_line/puppet_option_parser'
+require 'forwardable'
 
 # The class for handling configuration files.
 class Puppet::Settings
+  extend Forwardable
   include Enumerable
 
   require 'puppet/settings/errors'
@@ -89,6 +91,7 @@ class Puppet::Settings
 
     # And keep a per-environment cache
     @cache = Hash.new { |hash, key| hash[key] = {} }
+    @values = Hash.new { |hash, key| hash[key] = {} }
 
     # The list of sections we've used.
     @used = []
@@ -196,6 +199,8 @@ class Puppet::Settings
     @value_sets[:memory] = Values.new(:memory, @config)
     @value_sets[:overridden_defaults] = Values.new(:overridden_defaults, @config)
 
+    @deprecated_settings_that_have_been_configured.clear
+    @values.clear
     @cache.clear
   end
   private :unsafe_clear
@@ -349,11 +354,7 @@ class Puppet::Settings
     end
   end
 
-  def each
-    @config.each { |name, object|
-      yield name, object
-    }
-  end
+  def_delegator :@config, :each
 
   # Iterate over each section name.
   def eachsection
@@ -541,11 +542,11 @@ class Puppet::Settings
     # If we get here and don't have any data, we just return and don't muck with the current state of the world.
     return if data.nil?
 
-    record_deprecations_from_puppet_conf(data)
-
-    # If we get here then we have some data, so we need to clear out any previous settings that may have come from
-    #  config files.
+    # If we get here then we have some data, so we need to clear out any
+    # previous settings that may have come from config files.
     unsafe_clear(false, false)
+
+    record_deprecations_from_puppet_conf(data)
 
     # And now we can repopulate with the values from our last parsing of the config files.
     @configuration_file = data
@@ -994,7 +995,7 @@ Generated on #{Time.now}.
   # @return [Puppet::Settings::ChainedValues] An object to perform lookups
   # @api public
   def values(environment, section)
-    ChainedValues.new(
+    @values[environment][section] ||= ChainedValues.new(
       section,
       environment,
       value_sets_for(environment, section),
@@ -1196,6 +1197,7 @@ Generated on #{Time.now}.
   # @return nil
   def clear_everything_for_tests()
     unsafe_clear(true, true)
+    @configuration_file = nil
     @global_defaults_initialized = false
     @app_defaults_initialized = false
   end
@@ -1229,6 +1231,8 @@ Generated on #{Time.now}.
   #
   # @api public
   class ChainedValues
+    ENVIRONMENT_SETTING = "environment".freeze
+
     # @see Puppet::Settings.values
     # @api private
     def initialize(mode, environment, value_sets, defaults)
@@ -1293,49 +1297,53 @@ Generated on #{Time.now}.
     private
 
     def convert(value)
-      return nil if value.nil?
-      return value unless value.is_a? String
-      value.gsub(/\$(\w+)|\$\{(\w+)\}/) do |value|
-        varname = $2 || $1
-        if varname == "environment" && @environment
-          @environment
-        elsif varname == "run_mode"
-          @mode
-        elsif !(pval = interpolate(varname.to_sym)).nil?
-          pval
-        else
-          raise InterpolationError, "Could not find value for #{value}"
+      case value
+      when nil
+        nil
+      when String
+        value.gsub(/\$(\w+)|\$\{(\w+)\}/) do |value|
+          varname = $2 || $1
+          if varname == ENVIRONMENT_SETTING && @environment
+            @environment
+          elsif varname == "run_mode"
+            @mode
+          elsif !(pval = interpolate(varname.to_sym)).nil?
+            pval
+          else
+            raise InterpolationError, "Could not find value for #{value}"
+          end
         end
+      else
+        value
       end
     end
   end
 
   class Values
+    extend Forwardable
+
     def initialize(name, defaults)
       @name = name
       @values = {}
       @defaults = defaults
     end
 
-    def include?(name)
-      @values.include?(name)
-    end
+    def_delegator :@values, :include?
+    def_delegator :@values, :[], :lookup
 
     def set(name, value)
-      if !@defaults[name]
+      default = @defaults[name]
+
+      if !default
         raise ArgumentError,
           "Attempt to assign a value to unknown setting #{name.inspect}"
       end
 
-      if @defaults[name].has_hook?
-        @defaults[name].handle(value)
+      if default.has_hook?
+        default.handle(value)
       end
 
       @values[name] = value
-    end
-
-    def lookup(name)
-      @values[name]
     end
   end
 
@@ -1376,12 +1384,9 @@ Generated on #{Time.now}.
     end
 
     def conf
-      unless @conf
-        if environments = Puppet.lookup(:environments)
-          @conf = environments.get_conf(@environment_name)
-        end
-      end
-      return @conf
+      @conf ||= if environments = Puppet.lookup(:environments)
+                  environments.get_conf(@environment_name)
+                end
     end
   end
 end

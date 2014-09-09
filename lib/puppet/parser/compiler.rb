@@ -20,6 +20,17 @@ class Puppet::Parser::Compiler
     $env_module_directories = nil
     node.environment.check_for_reparse
 
+    if node.environment.conflicting_manifest_settings?
+      errmsg = [
+        "The 'disable_per_environment_manifest' setting is true, and this '#{node.environment}'",
+        "has an environment.conf manifest that conflicts with the 'default_manifest' setting.",
+        "Compilation has been halted in order to avoid running a catalog which may be using",
+        "unexpected manifests. For more information, see",
+        "http://docs.puppetlabs.com/puppet/latest/reference/environments.html",
+      ]
+      raise(Puppet::Error, errmsg.join(' '))
+    end
+
     new(node).compile.to_resource
   rescue => detail
     message = "#{detail} on node #{node.name}"
@@ -154,9 +165,6 @@ class Puppet::Parser::Compiler
 
   # Return the node's environment.
   def environment
-    unless node.environment.is_a? Puppet::Node::Environment
-      raise Puppet::DevError, "node #{node} has an invalid environment!"
-    end
     node.environment
   end
 
@@ -574,10 +582,8 @@ class Puppet::Parser::Compiler
   end
 
   def create_settings_scope
-    unless settings_type = environment.known_resource_types.hostclass("settings")
-      settings_type = Puppet::Resource::Type.new :hostclass, "settings"
-      environment.known_resource_types.add(settings_type)
-    end
+    settings_type = Puppet::Resource::Type.new :hostclass, "settings"
+    environment.known_resource_types.add(settings_type)
 
     settings_resource = Puppet::Parser::Resource.new("class", "settings", :scope => @topscope)
 
@@ -587,9 +593,10 @@ class Puppet::Parser::Compiler
 
     scope = @topscope.class_scope(settings_type)
 
+    env = environment
     Puppet.settings.each do |name, setting|
-      next if name.to_s == "name"
-      scope[name.to_s] = environment[name]
+      next if name == :name
+      scope[name.to_s] = env[name]
     end
   end
 

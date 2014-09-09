@@ -267,43 +267,8 @@ class Puppet::Pops::Evaluator::EvaluatorImpl
     name = lvalue(o.left_expr, scope)
     value = evaluate(o.right_expr, scope)
 
-    case o.operator
-    when :'=' # regular assignment
+    if o.operator == :'='
       assign(name, value, o, scope)
-
-    when :'+='
-      # if value does not exist and strict is on, looking it up fails, else it is nil or :undef
-      existing_value = get_variable_value(name, o, scope)
-      begin
-        # Supports :undef as it may come from a 3x structure.
-        if existing_value.nil? || existing_value == :undef
-          assign(name, value, o, scope)
-        else
-          # Delegate to calculate function to deal with check of LHS, and perform ´+´ as arithmetic or concatenation the
-          # same way as ArithmeticExpression performs `+`.
-          assign(name, calculate(existing_value, value, :'+', o.left_expr, o.right_expr, scope), o, scope)
-        end
-      rescue ArgumentError => e
-        fail(Issues::APPEND_FAILED, o, {:message => e.message})
-      end
-
-    when :'-='
-      # If an attempt is made to delete values from something that does not exists, the value is :undef (it is guaranteed to not
-      # include any values the user wants deleted anyway :-)
-      #
-      # if value does not exist and strict is on, looking it up fails, else it is nil or :undef
-      existing_value = get_variable_value(name, o, scope)
-      begin
-      # Supports :undef as it may come from a 3x structure.
-      if existing_value.nil? || existing_value == :undef
-        assign(name, nil, o, scope)
-      else
-        # Delegate to delete function to deal with check of LHS, and perform deletion
-        assign(name, delete(get_variable_value(name, o, scope), value), o, scope)
-      end
-      rescue ArgumentError => e
-        fail(Issues::APPEND_FAILED, o, {:message => e.message}, e)
-      end
     else
       fail(Issues::UNSUPPORTED_OPERATOR, o, {:operator => o.operator})
     end
@@ -650,17 +615,22 @@ class Puppet::Pops::Evaluator::EvaluatorImpl
     if (tmp_name = o.type_name).is_a?(Puppet::Pops::Model::QualifiedName)
       tmp_name.value # already validated as a name
     else
+      type_name_acceptable =
+      case o.type_name
+      when Puppet::Pops::Model::QualifiedReference
+        true
+      when Puppet::Pops::Model::AccessExpression
+        o.type_name.left_expr.is_a?(Puppet::Pops::Model::QualifiedReference)
+      end
+
       evaluated_name = evaluate(tmp_name, scope)
+      unless type_name_acceptable
+        actual = type_calculator.generalize!(type_calculator.infer(evaluated_name)).to_s
+        fail(Puppet::Pops::Issues::ILLEGAL_RESOURCE_TYPE, o.type_name, {:actual => actual})
+      end
 
-      # must be String or Resource Type
+      # must be a CatalogEntry subtype
       case evaluated_name
-      when String
-        resulting_name = evaluated_name.downcase
-        if resulting_name !~ Puppet::Pops::Patterns::CLASSREF
-          fail(Puppet::Pops::Issues::ILLEGAL_CLASSREF, o.type_name, {:name=>resulting_name})
-        end
-        resulting_name
-
       when Puppet::Pops::Types::PHostClassType
         unless evaluated_name.class_name.nil?
           fail(Puppet::Pops::Issues::ILLEGAL_RESOURCE_TYPE, o.type_name, {:actual=> evaluated_name.to_s})
@@ -681,7 +651,6 @@ class Puppet::Pops::Evaluator::EvaluatorImpl
 
     # This is a runtime check - the model is valid, but will have runtime issues when evaluated
     # and storeconfigs is not set.
-    #if acceptor.will_accept?(Issues::RT_NO_STORECONFIGS) && o.exported
     if(o.exported)
       optionally_fail(Puppet::Pops::Issues::RT_NO_STORECONFIGS_EXPORT, o);
     end
@@ -733,7 +702,12 @@ class Puppet::Pops::Evaluator::EvaluatorImpl
       body_to_params[body] = body.operations.reduce({}) do |param_memo, op|
         params = evaluate(op, scope)
         params = [params] unless params.is_a?(Array)
-        params.each { |p| param_memo[p.name] = p }
+        params.each do |p|
+          if param_memo.include? p.name
+            fail(Puppet::Pops::Issues::DUPLICATE_ATTRIBUTE, o, {:attribute => p.name})
+          end
+          param_memo[p.name] = p 
+        end
         param_memo
       end
     end

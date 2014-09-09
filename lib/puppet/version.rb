@@ -19,7 +19,7 @@ module Puppet
     PEVERSION = File.new(PEVersionFile).gets.chomp
     PUPPETVERSION = "3.6.2 (Puppet Enterprise #{PEVERSION})"
   else
-    PUPPETVERSION = '3.6.2'
+    PUPPETVERSION = '3.7.0'
   end
 
   ##

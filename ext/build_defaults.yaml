@@ -15,6 +15,21 @@ yum_repo_path: '/opt/pe_dev'
 build_gem: FALSE
 build_dmg: FALSE
 build_pe: TRUE
+build_msi:
+  puppet_for_the_win:
+    ref: 'c61dda253b09bd855488f7b6dd7332fdf84d3039'
+    repo: 'git://github.com/puppetlabs/puppet_for_the_win.git'
+  facter:
+    ref: 'refs/tags/2.2.0'
+    repo: 'git://github.com/puppetlabs/facter.git'
+  hiera:
+    ref: 'refs/tags/1.3.4'
+    repo: 'git://github.com/puppetlabs/hiera.git'
+  sys:
+    ref:
+      x86: '890ad47c3b70de4e4956d2699b54d481d5a1b72e'
+      x64: '2820779a3f4281534a6792b0ab20b2cf213647dc'
+    repo: 'git://github.com/puppetlabs/puppet-win32-ruby.git'
 apt_host: 'neptune.delivery.puppetlabs.net'
 apt_repo_url: 'http://freight.puppetlabs.lan'
 apt_repo_path: '/opt/pe_dev'

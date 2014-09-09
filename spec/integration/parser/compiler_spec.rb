@@ -171,10 +171,10 @@ describe "Puppet::Parser::Compiler" do
     let(:code) do
       <<-MANIFEST
         file { [a,b,c]:
-          mode => 0644,
+          mode => '0644',
         }
         file { [d,e]:
-          mode => 0755,
+          mode => '0755',
         }
       MANIFEST
     end
@@ -327,7 +327,7 @@ describe "Puppet::Parser::Compiler" do
         match do |manifest|
           @error = nil
           begin
-            compile_to_catalog(manifest, node)
+            PuppetSpec::Compiler.compile_to_catalog(manifest, node)
             false
           rescue Puppet::Error => e
             @error = e

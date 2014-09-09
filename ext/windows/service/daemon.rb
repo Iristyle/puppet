@@ -4,6 +4,7 @@ require 'fileutils'
 require 'win32/daemon'
 require 'win32/dir'
 require 'win32/process'
+require 'win32/eventlog'
 
 class WindowsDaemon < Win32::Daemon
   CREATE_NEW_CONSOLE          = 0x00000010
@@ -11,6 +12,8 @@ class WindowsDaemon < Win32::Daemon
   EVENTLOG_WARNING_TYPE       = 0x0002
   EVENTLOG_INFORMATION_TYPE   = 0x0004
 
+  @run_thread = nil
+  @LOG_TO_FILE = false
   LOG_FILE =  File.expand_path(File.join(Dir::COMMON_APPDATA, 'PuppetLabs', 'puppet', 'var', 'log', 'windows.log'))
   LEVELS = [:debug, :info, :notice, :err]
   LEVELS.each do |level|
@@ -23,57 +26,75 @@ class WindowsDaemon < Win32::Daemon
     FileUtils.mkdir_p(File.dirname(LOG_FILE))
   end
 
-  def service_main(*argv)
-    args = argv.join(' ')
-    @loglevel = LEVELS.index(argv.index('--debug') ? :debug : :notice)
+  def service_main(*argsv)
+    argsv = (argsv << ARGV).flatten.compact
+    args = argsv.join(' ')
+    @loglevel = LEVELS.index(argsv.index('--debug') ? :debug : :notice)
 
-    log_notice("Starting service: #{args}")
+    @LOG_TO_FILE = (argsv.index('--logtofile') ? true : false)
 
-    while running? do
-      return if state != RUNNING
+    if (@LOG_TO_FILE)
+      FileUtils.mkdir_p(File.dirname(LOG_FILE))
+      args = args.gsub("--logtofile","")
+    end
+    basedir = File.expand_path(File.join(File.dirname(__FILE__), '..'))
 
-      log_notice('Service running')
+    # The puppet installer registers a 'Puppet' event source.  For the moment events will be logged with this key, but
+    # it may be a good idea to split the Service and Puppet events later so it's easier to read in the windows Event Log.
+    #
+    # Example code to register an event source;
+    # eventlogdll =  File.expand_path(File.join(basedir, 'puppet', 'ext', 'windows', 'eventlog', 'puppetres.dll'))
+    # if (File.exists?(eventlogdll))
+    #   Win32::EventLog.add_event_source(
+    #      'source' => "Application",
+    #      'key_name' => "Puppet Agent",
+    #      'category_count' => 3,
+    #      'event_message_file' => eventlogdll,
+    #      'category_message_file' => eventlogdll
+    #   )
+    # end
 
-      basedir = File.expand_path(File.join(File.dirname(__FILE__), '..'))
-      puppet = File.join(basedir, 'bin', 'puppet.bat')
-      unless File.exists?(puppet)
-        log_err("File not found: '#{puppet}'")
-        return
-      end
+    puppet = File.join(basedir, 'bin', 'puppet.bat')
+    unless File.exists?(puppet)
+      log_err("File not found: '#{puppet}'")
+      return
+    end
+    log_debug("Using '#{puppet}'")
 
-      log_debug("Using '#{puppet}'")
+    log_notice('Service started')
+
+    service = self
+    @run_thread = Thread.new do
       begin
-        runinterval = %x{ "#{puppet}" agent --configprint runinterval }.to_i
-        if runinterval == 0
-          runinterval = 1800
-          log_err("Failed to determine runinterval, defaulting to #{runinterval} seconds")
+        while service.running? do
+          runinterval = service.parse_runinterval(puppet)
+          if service.state == RUNNING or service.state == IDLE
+            service.log_notice("Executing agent with arguments: #{args}")
+            pid = Process.create(:command_line => "\"#{puppet}\" agent --onetime #{args}", :creation_flags => CREATE_NEW_CONSOLE).process_id
+            service.log_debug("Process created: #{pid}")
+          else
+            service.log_debug("Service is paused.  Not invoking Puppet agent")
+          end
+
+          service.log_debug("Service worker thread waiting for #{runinterval} seconds")
+          sleep(runinterval)
+          service.log_debug('Service worker thread woken up')
         end
       rescue Exception => e
-        log_exception(e)
-        runinterval = 1800
+        service.log_exception(e)
       end
-
-      if state == RUNNING or state == IDLE
-        log_notice("Executing agent with arguments: #{args}")
-        pid = Process.create(:command_line => "\"#{puppet}\" agent --onetime #{args}", :creation_flags => CREATE_NEW_CONSOLE).process_id
-        log_debug("Process created: #{pid}")
-      else
-        log_debug("Service is paused.  Not invoking Puppet agent")
-      end
-
-      log_debug("Service waiting for #{runinterval} seconds")
-      sleep(runinterval)
-      log_debug('Service resuming')
     end
+    @run_thread.join
 
-    log_notice('Service stopped')
   rescue Exception => e
     log_exception(e)
+  ensure
+    log_notice('Service stopped')
   end
 
   def service_stop
-    log_notice('Service stopping')
-    Thread.main.wakeup
+    log_notice('Service stopping / killing worker thread')
+    @run_thread.kill if @run_thread
   end
 
   def service_pause
@@ -132,6 +153,21 @@ class WindowsDaemon < Win32::Daemon
         eventlog.close
       end
     end
+  end
+
+  def parse_runinterval(puppet_path)
+    begin
+      runinterval = %x{ "#{puppet_path}" agent --configprint runinterval }.to_i
+      if runinterval == 0
+        runinterval = 1800
+        log_err("Failed to determine runinterval, defaulting to #{runinterval} seconds")
+      end
+    rescue Exception => e
+      log_exception(e)
+      runinterval = 1800
+    end
+
+    runinterval
   end
 end
 

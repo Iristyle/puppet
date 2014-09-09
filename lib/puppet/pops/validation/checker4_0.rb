@@ -150,9 +150,15 @@ class Puppet::Pops::Validation::Checker4_0
   end
 
   def check_AssignmentExpression(o)
-    acceptor.accept(Issues::UNSUPPORTED_OPERATOR, o, {:operator => o.operator}) unless [:'=', :'+=', :'-='].include? o.operator
-    assign(o.left_expr)
-    rvalue(o.right_expr)
+    case o.operator
+    when :'='
+      assign(o.left_expr)
+      rvalue(o.right_expr)
+    when :'+=', :'-='
+      acceptor.accept(Issues::APPENDS_DELETES_NO_LONGER_SUPPORTED, o, {:operator => o.operator})
+    else
+      acceptor.accept(Issues::UNSUPPORTED_OPERATOR, o, {:operator => o.operator})
+    end
   end
 
   # Checks that operation with :+> is contained in a ResourceOverride or Collector.
@@ -179,7 +185,7 @@ class Puppet::Pops::Validation::Checker4_0
     parent = o.eContainer
     parent = parent.eContainer unless parent.nil?
     unless parent.is_a?(Model::ResourceExpression)
-      acceptor.accept(Issues::UNSUPPORTED_OPERATOR, o, :operator=>'* =>')
+      acceptor.accept(Issues::UNSUPPORTED_OPERATOR_IN_CONTEXT, o, :operator=>'* =>')
     end
 
     rvalue(o.expr)
@@ -398,7 +404,7 @@ class Puppet::Pops::Validation::Checker4_0
   def relation_RelationshipExpression(o); end
 
   def check_Parameter(o)
-    if o.name =~ /^[0-9]+$/
+    if o.name =~ /^(?:0x)?[0-9]+$/
       acceptor.accept(Issues::ILLEGAL_NUMERIC_PARAMETER, o, :name => o.name)
     end
   end
@@ -418,13 +424,23 @@ class Puppet::Pops::Validation::Checker4_0
   end
 
   def check_ResourceExpression(o)
-    # TODO: Can no longer be asserted
+    # The expression for type name cannot be statically checked - this is instead done at runtime
+    # to enable better error message of the result of the expression rather than the static instruction.
+    # (This can be revised as there are static constructs that are illegal, but require updating many
+    # tests that expect the detailed reporting).
+  end
 
-    ## A resource expression must have a lower case NAME as its type e.g. 'file { ... }'
-    #unless o.type_name.is_a? Model::QualifiedName
-    #  acceptor.accept(Issues::ILLEGAL_EXPRESSION, o.type_name, :feature => 'resource type', :container => o)
-    #end
-
+  def check_ResourceBody(o)
+    seenUnfolding = false
+    o.operations.each do |ao|
+      if ao.is_a?(Puppet::Pops::Model::AttributesOperation)
+        if seenUnfolding
+          acceptor.accept(Issues::MULTIPLE_ATTRIBUTES_UNFOLD, ao)
+        else
+          seenUnfolding = true
+        end
+      end
+    end
   end
 
   def check_ResourceDefaultsExpression(o)
