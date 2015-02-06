@@ -120,5 +120,8 @@ hosts.each do |host|
   when /solaris/
     step "#{host} Install json from rubygems"
     on host, 'gem install json_pure'
+  when /windows/
+  else
+    on host, %Q{ echo 'export PATH=$PATH:#{master['puppetbindir']}' >> /etc/bashrc }
   end
 end
