@@ -217,4 +217,14 @@ describe Puppet::Type.type(:group).provider(:windows_adsi), :if => Puppet.featur
   it "should prefer the domain component from the resolved SID" do
     provider.members_to_s(['.\Administrators']).should == 'BUILTIN\Administrators'
   end
+
+  it "should return an empty string with an empty array" do
+    provider.members_to_s([]).should == ''
+  end
+
+  it "should raise an error on a bad username" do
+    user_name = 'b_a_baracus'
+    expect{ provider.members_to_s([user_name]) }.to raise_error(Puppet::Util::Windows::Error,
+      /Could not resolve username: #{user_name} to a SID/ )
+  end
 end
