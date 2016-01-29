@@ -105,7 +105,7 @@ class Puppet::Util::FileType
     # Read the file.
     def read
       if Puppet::FileSystem.exist?(@path)
-        File.read(@path)
+        Puppet::FileSystem.read(@path, :encoding => 'utf-8')
       else
         return nil
       end

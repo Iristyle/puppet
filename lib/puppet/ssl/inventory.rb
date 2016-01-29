@@ -40,6 +40,7 @@ class Puppet::SSL::Inventory
   def serials(name)
     return [] unless Puppet::FileSystem.exist?(@path)
 
+    # TODO: FileSystem doesn't have a readlines
     File.readlines(@path).collect do |line|
       /^(\S+).+\/CN=#{name}$/.match(line)
     end.compact.map { |m| Integer(m[1]) }
