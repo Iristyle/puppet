@@ -83,6 +83,7 @@ module Puppet::Util::Windows::ADSI
     end
 
     def uri(resource_name, resource_type, host = '.')
+      require 'pry'; binding.pry
       "#{computer_uri(host)}/#{resource_name},#{resource_type}"
     end
 
@@ -406,6 +407,7 @@ module Puppet::Util::Windows::ADSI
     end
 
     def native_group
+      require 'pry'; binding.pry
       @native_group ||= Puppet::Util::Windows::ADSI.connect(self.class.uri(*self.class.parse_name(name)))
     end
 
