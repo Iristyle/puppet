@@ -66,7 +66,7 @@ def run_test(command)
   clear
   result = run_comp(command).split("\n").last
   status = result.include?('0 failures, 0 errors') ? :pass : :fail
-  growl result.split("\n").last rescue nil
+  growl(result.split("\n").last, status) rescue nil
 end
 
 def run_test_file(file)
