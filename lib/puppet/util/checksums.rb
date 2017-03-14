@@ -259,8 +259,6 @@ module Puppet::Util::Checksums
     end
   end
 
-  private_class_method
-
   # Perform an incremental checksum on a file.
   def checksum_file(digest, filename, lite = false)
     buffer = lite ? 512 : 4096
