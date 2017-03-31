@@ -39,4 +39,6 @@ Gem::Specification.new do |s|
   # PUP-7115 - return to a gem dependency in Puppet 5
   # s.add_runtime_dependency(%q<semantic_puppet>, ['>= 0.1.3', '< 2'])
   s.add_runtime_dependency(%q<gettext-setup>, [">= 0.10", "< 1"])
+  s.add_runtime_dependency("win32-process", ["= 0.7.5"])
+  s.add_runtime_dependency("win32-service", ["= 0.8.8"])
 end
