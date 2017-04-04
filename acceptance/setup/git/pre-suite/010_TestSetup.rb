@@ -38,7 +38,26 @@ gem '#{repository[:name]}', :git => '#{repository[:path]}', :ref => '#{ENV['SHA'
 END
         case host['platform']
         when /windows/
-          raise ArgumentError, "Windows is not yet supported"
+          create_remote_file(host, "#{puppet_dir}/Gemfile", gemfile_contents)
+          # bundle must be passed a Windows style path for a binstubs location
+          binstubs_dir = on(host, "cygpath -m \"#{host['puppetbindir']}\"").stdout.chomp
+          # note passing --shebang to bundle is not useful because Cygwin
+          # already finds the Ruby interpreter OK with the standard shebang of:
+          # !/usr/bin/env ruby
+          # the problem is that a Cygwin style path is passed to the interpreter
+          on host, "cd #{puppet_dir} && cmd.exe /c \"bundle install --system\ --binstubs #{binstubs_dir}\""
+          # puppet.bat isn't written by Bundler, but facter.bat is - copy this generic file
+          on host, "cd #{host['puppetbindir']} && test -f ./puppet.bat || cp ./facter.bat ./puppet.bat"
+          # amend .bashrc with aliases so that Ruby binstubs always run through cmd
+          # without them, Cygwin reads the shebang and causes errors like:
+          # C:\cygwin64\bin\ruby.exe: No such file or directory -- /usr/bin/puppet (LoadError)
+          # /usr/bin/puppet is a Cygwin style path that our custom Ruby build
+          # does not understand - it expects a standard Windows path like c:\foo\puppet.rb
+          # Rhere is no way to modify this behavior
+          # see http://cygwin.1069669.n5.nabble.com/Pass-windows-style-paths-to-the-interpreter-from-the-shebang-line-td43870.html
+          ['gem', 'facter', 'puppet'].each do |cmd_alias|
+            on host, "echo \"alias #{cmd_alias}='C:/\\cygwin64/\\bin/\\#{cmd_alias}.bat'\" >> ~/.bashrc"
+          end
         when /el-7/
           gemfile_contents = gemfile_contents + "gem 'json'\n"
           create_remote_file(host, "#{puppet_dir}/Gemfile", gemfile_contents)
