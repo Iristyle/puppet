@@ -392,11 +392,9 @@ describe Puppet::Transaction::Report do
 
       it "should have 'noop_pending == false' when no 'noop' events are available" do
         add_statuses(3) do |status|
-          ['success', 'audit'].each do |status_name|
-            event = Puppet::Transaction::Event.new
-            event.status = status_name
-            status.add_event(event)
-          end
+          event = Puppet::Transaction::Event.new
+          event.status = 'success'
+          status.add_event(event)
         end
         @report.finalize_report
         expect(@report.noop_pending).to be_falsey
@@ -404,7 +402,7 @@ describe Puppet::Transaction::Report do
 
       it "should have 'noop_pending == true' when 'noop' events are available" do
         add_statuses(3) do |status|
-          ['success', 'audit', 'noop'].each do |status_name|
+          ['success', 'noop'].each do |status_name|
             event = Puppet::Transaction::Event.new
             event.status = status_name
             status.add_event(event)
@@ -416,7 +414,7 @@ describe Puppet::Transaction::Report do
 
       it "should have 'noop_pending == true' when 'noop' and 'failure' events are available" do
         add_statuses(3) do |status|
-          ['success', 'failure', 'audit', 'noop'].each do |status_name|
+          ['success', 'failure', 'noop'].each do |status_name|
             event = Puppet::Transaction::Event.new
             event.status = status_name
             status.add_event(event)
