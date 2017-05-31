@@ -1295,7 +1295,7 @@ class Type
       if Puppet.settings[:strict] != :off
         # Only warn if `audit` metaparam came from a manifest
         if file && line
-          Puppet.warn(_("The `audit` metaparameter is ignored."), { :line => line, :file => file })
+          Puppet.warn_once(_("The `audit` metaparameter is ignored."), { :line => line, :file => file })
         end
       end
     end
