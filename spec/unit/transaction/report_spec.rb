@@ -606,7 +606,6 @@ describe Puppet::Transaction::Report do
 
   def generate_report
     event_hash = {
-      :audited => false,
       :property => 'message',
       :previous_value => 'absent',
       :desired_value => 'a resource',

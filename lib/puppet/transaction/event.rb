@@ -11,13 +11,13 @@ class Puppet::Transaction::Event
   include Puppet::Util::Logging
   include Puppet::Network::FormatSupport
 
-  ATTRIBUTES = [:name, :resource, :property, :previous_value, :desired_value, :historical_value, :status, :message, :file, :line, :source_description, :audited, :invalidate_refreshes, :redacted, :corrective_change]
-  YAML_ATTRIBUTES = %w{@audited @property @previous_value @desired_value @historical_value @message @name @status @time @redacted @corrective_change}.map(&:to_sym)
+  ATTRIBUTES = [:name, :resource, :property, :previous_value, :desired_value, :historical_value, :status, :message, :file, :line, :source_description, :invalidate_refreshes, :redacted, :corrective_change]
+  YAML_ATTRIBUTES = %w{@property @previous_value @desired_value @historical_value @message @name @status @time @redacted @corrective_change}.map(&:to_sym)
   attr_accessor *ATTRIBUTES
   attr_accessor :time
   attr_reader :default_log_level
 
-  EVENT_STATUSES = %w{noop success failure audit}
+  EVENT_STATUSES = %w{noop success failure}
 
   def self.from_data_hash(data)
     obj = self.allocate
@@ -26,7 +26,6 @@ class Puppet::Transaction::Event
   end
 
   def initialize(options = {})
-    @audited = false
     @redacted = false
     @corrective_change = false
 
@@ -35,7 +34,6 @@ class Puppet::Transaction::Event
   end
 
   def initialize_from_hash(data)
-    @audited = data['audited']
     @property = data['property']
     @previous_value = data['previous_value']
     @desired_value = data['desired_value']
@@ -51,7 +49,6 @@ class Puppet::Transaction::Event
 
   def to_data_hash
     {
-      'audited' => @audited,
       'property' => @property,
       'previous_value' => @previous_value,
       'desired_value' => @desired_value,
