@@ -609,7 +609,6 @@ describe Puppet::Transaction::Report do
       :property => 'message',
       :previous_value => 'absent',
       :desired_value => 'a resource',
-      :historical_value => nil,
       :message => "defined 'message' as 'a resource'",
       :name => :message_changed,
       :status => 'success',
