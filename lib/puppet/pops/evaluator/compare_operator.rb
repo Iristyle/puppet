@@ -221,7 +221,9 @@ class CompareOperator
   end
 
   def match_Symbol(symbol, left, scope)
+    require 'pry'; binding.pry
     return true if symbol == :default
+    # TODO: how do we ever get here???
     equals(symbol, left)
   end
 end

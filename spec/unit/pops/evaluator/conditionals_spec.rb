@@ -127,6 +127,7 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
           )).to eq(nil)
       end
 
+      # TODO: calls match_Regexp
       it "case 'banana' { 1,3 : {'wat'} /.*ana.*/: { 'w00t'} } == w00t" do
         expect(evaluate(CASE(literal('banana'),
           WHEN([literal(1), literal(3)], literal('wat')),
@@ -135,6 +136,7 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
       end
 
       context "with regular expressions" do
+        # TODO: calls match_Regexp
         it "should set numeric variables from the match" do
           expect(evaluate(CASE(literal('banana'),
             WHEN([literal(1), literal(3)], literal('wat')),
@@ -179,6 +181,7 @@ describe 'Puppet::Pops::Evaluator::EvaluatorImpl' do
           ))).to eq('w00t')
       end
 
+      # TODO: calls match_Regexp
       it "should set numerical variables from match" do
         expect(evaluate(literal('banana').select(
           MAP(literal(1), literal('wat')),
